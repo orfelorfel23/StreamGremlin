@@ -1,0 +1,23 @@
+# Secrets (Plaintext .env darf nie ins Git - nur .env.age!)
+.env
+*.key
+keys/age-key.txt
+
+# Python & Build Artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+build/
+dist/
+*.spec
+
+# TTS Runtime Cache
+tts_cache/
+*.tmp
+
+# OS
+.DS_Store
+Thumbs.db

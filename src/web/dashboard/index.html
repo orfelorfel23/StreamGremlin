@@ -1,0 +1,1650 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>STREAMGREMLIN // COMMAND DECK</title>
+  <link rel="icon" type="image/png" href="/assets/icon.png" />
+  <style>
+    /* =========================================================================
+       ANTI-AI-UI DESIGN SYSTEM: INDUSTRIAL BROADCAST COCKPIT
+       Zero blurry gradients, zero generic SaaS cards, crisp 1px structural grid,
+       tactile hardware switches, monospace telemetry readouts.
+       ========================================================================= */
+    :root {
+      --bg-base: #090a0d;
+      --bg-panel: #101217;
+      --bg-elevated: #171a21;
+      --bg-input: #060709;
+      --border: #262a34;
+      --border-focus: #38ff7a;
+      --text-main: #eef0f6;
+      --text-muted: #858d9f;
+      --accent-green: #22c55e;
+      --accent-lime: #38ff7a;
+      --accent-amber: #f59e0b;
+      --accent-red: #ef4444;
+      --accent-twitch: #9146ff;
+      --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      line-height: 1.45;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    code, pre, .mono {
+      font-family: var(--font-mono);
+    }
+
+    /* Top Telemetry Header Bar */
+    .top-bar {
+      height: 58px;
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand img {
+      width: 36px;
+      height: 36px;
+      object-fit: contain;
+      border: 1px solid var(--border);
+      background: #000;
+    }
+    .brand-title {
+      font-family: var(--font-mono);
+      font-weight: 900;
+      font-size: 16px;
+      letter-spacing: 1.5px;
+      color: var(--text-main);
+    }
+    .brand-sub {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--accent-lime);
+      letter-spacing: 2px;
+    }
+
+    .telemetry-strip {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .status-cell {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+    .led {
+      width: 8px;
+      height: 8px;
+      background: var(--text-muted);
+      display: inline-block;
+    }
+    .led.on {
+      background: var(--accent-lime);
+      box-shadow: 0 0 8px var(--accent-lime);
+    }
+    .led.warn {
+      background: var(--accent-amber);
+      box-shadow: 0 0 8px var(--accent-amber);
+    }
+    .led.off {
+      background: var(--accent-red);
+    }
+
+    .role-badge {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 800;
+      padding: 5px 10px;
+      border: 1px solid var(--accent-lime);
+      color: var(--accent-lime);
+      background: rgba(56, 255, 122, 0.08);
+      text-transform: uppercase;
+    }
+
+    /* Emergency Panic Switch */
+    .btn-panic {
+      background: var(--accent-red);
+      color: #000;
+      border: 2px solid #ff8080;
+      padding: 8px 18px;
+      font-family: var(--font-mono);
+      font-weight: 900;
+      font-size: 13px;
+      letter-spacing: 1px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: transform 0.06s ease, background 0.1s;
+    }
+    .btn-panic:hover {
+      background: #ff2a2a;
+      color: #fff;
+    }
+    .btn-panic:active {
+      transform: translateY(2px);
+    }
+
+    /* Layout Shell */
+    .workspace {
+      display: grid;
+      grid-template-columns: 230px 1fr;
+      flex: 1;
+      min-height: calc(100vh - 58px);
+    }
+    .sidebar {
+      background: var(--bg-panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 16px 0;
+    }
+    .nav-list {
+      display: flex;
+      flex-direction: column;
+    }
+    .nav-btn {
+      background: transparent;
+      border: none;
+      border-left: 3px solid transparent;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      text-align: left;
+      padding: 13px 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .nav-btn:hover {
+      background: var(--bg-elevated);
+      color: var(--text-main);
+    }
+    .nav-btn.active {
+      background: var(--bg-elevated);
+      color: var(--accent-lime);
+      border-left-color: var(--accent-lime);
+    }
+
+    .main-area {
+      padding: 22px;
+      overflow-y: auto;
+    }
+
+    /* Structural Panels & Grids */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1.25fr 0.75fr;
+      gap: 18px;
+    }
+    .grid-equal {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+    .panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      margin-bottom: 18px;
+    }
+    .panel-head {
+      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-mono);
+      font-weight: 800;
+      font-size: 12px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .panel-body {
+      padding: 16px;
+    }
+
+    /* Buttons & Inputs */
+    .btn {
+      background: var(--bg-elevated);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      padding: 7px 14px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: border-color 0.1s, background 0.1s;
+    }
+    .btn:hover {
+      border-color: var(--accent-lime);
+      color: var(--accent-lime);
+    }
+    .btn-primary {
+      background: var(--accent-lime);
+      color: #050806;
+      border-color: var(--accent-lime);
+    }
+    .btn-primary:hover {
+      background: #22c55e;
+      color: #000;
+    }
+    .btn-twitch {
+      background: var(--accent-twitch);
+      color: #fff;
+      border-color: #a970ff;
+    }
+    .btn-twitch:hover {
+      background: #772ce8;
+      color: #fff;
+    }
+    .btn-danger {
+      border-color: var(--accent-red);
+      color: var(--accent-red);
+    }
+    .btn-danger:hover {
+      background: var(--accent-red);
+      color: #000;
+    }
+
+    .form-row {
+      margin-bottom: 12px;
+    }
+    .form-label {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 5px;
+      text-transform: uppercase;
+    }
+    input[type="text"],
+    input[type="password"],
+    input[type="number"],
+    select,
+    textarea {
+      width: 100%;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 8px 11px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      outline: none;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--accent-lime);
+    }
+
+    /* Hardware Pad Grid for Quick Testing */
+    .pad-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+      gap: 10px;
+    }
+    .pad-btn {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent-lime);
+      padding: 10px 12px;
+      text-align: left;
+      cursor: pointer;
+      font-family: var(--font-mono);
+      color: var(--text-main);
+      transition: background 0.1s, transform 0.05s;
+    }
+    .pad-btn:hover {
+      background: var(--bg-elevated);
+      border-color: var(--accent-lime);
+    }
+    .pad-btn:active {
+      transform: scale(0.98);
+    }
+    .pad-btn .pad-type {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: 3px;
+    }
+    .pad-btn .pad-name {
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    /* Data Table */
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+    table.data-table th,
+    table.data-table td {
+      border-bottom: 1px solid var(--border);
+      padding: 10px 12px;
+      text-align: left;
+    }
+    table.data-table th {
+      color: var(--text-muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      background: var(--bg-input);
+    }
+    .tag {
+      display: inline-block;
+      padding: 2px 7px;
+      font-size: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg-input);
+      color: var(--accent-lime);
+      text-transform: uppercase;
+    }
+
+    /* Event Feed List */
+    .feed-list {
+      max-height: 440px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .feed-item {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent-twitch);
+      padding: 8px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+    .feed-item.panic {
+      border-left-color: var(--accent-red);
+      background: rgba(239, 68, 68, 0.1);
+    }
+
+    /* Auth / Modal Overlay */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(5, 6, 8, 0.92);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 500;
+    }
+    .modal-box {
+      width: 100%;
+      max-width: 640px;
+      background: var(--bg-panel);
+      border: 1px solid var(--accent-lime);
+      box-shadow: 0 25px 80px rgba(0, 0, 0, 0.95);
+    }
+
+    .tab-view { display: none; }
+    .tab-view.active { display: block; }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--accent-lime);
+      color: var(--accent-lime);
+      padding: 10px 18px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      display: none;
+      z-index: 999;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- TOP TELEMETRY BAR -->
+  <header class="top-bar">
+    <div class="brand">
+      <img src="/assets/icon.png" alt="StreamGremlin" onerror="this.style.display='none'" />
+      <div>
+        <div class="brand-title">STREAMGREMLIN</div>
+        <div class="brand-sub">CHAOS ENGINE // PORT 4736</div>
+      </div>
+    </div>
+
+    <div class="telemetry-strip">
+      <div class="status-cell">
+        <span class="led" id="led-twitch"></span>
+        <span>TWITCH: <strong id="txt-twitch">OFFLINE</strong></span>
+      </div>
+      <div class="status-cell">
+        <span class="led" id="led-agent"></span>
+        <span>PC-AGENT: <strong id="txt-agent">0 VERBUNDEN</strong></span>
+      </div>
+      <div class="status-cell">
+        <span class="led" id="led-overlay"></span>
+        <span>OBS OVERLAY: <strong id="txt-overlay">0 AKTIV</strong></span>
+      </div>
+      <button class="btn" id="btn-mute" onclick="toggleMute()">🔊 AUDIO: AN</button>
+      <span class="role-badge" id="badge-role">GAST</span>
+      <button class="btn-panic" onclick="triggerPanic()">🛑 PANIK (STOP ALL)</button>
+      <button class="btn" onclick="logout()">LOGOUT</button>
+    </div>
+  </header>
+
+  <!-- WORKSPACE -->
+  <div class="workspace">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="nav-list">
+        <button class="nav-btn active" data-tab="tab-live" onclick="switchTab('tab-live', this)">
+          <span>[01] LIVE-DECK & TEST</span>
+          <span>⚡</span>
+        </button>
+        <button class="nav-btn" id="nav-triggers" data-tab="tab-triggers" onclick="switchTab('tab-triggers', this)">
+          <span>[02] TRIGGER-MATRIX</span>
+          <span>🎯</span>
+        </button>
+        <button class="nav-btn" id="nav-sounds" data-tab="tab-sounds" onclick="switchTab('tab-sounds', this)">
+          <span>[03] SOUND-MANAGER</span>
+          <span>🎵</span>
+        </button>
+        <button class="nav-btn" id="nav-twitch" data-tab="tab-twitch" onclick="switchTab('tab-twitch', this)">
+          <span>[04] TWITCH WIZARD</span>
+          <span>🟣</span>
+        </button>
+        <button class="nav-btn" id="nav-settings" data-tab="tab-settings" onclick="switchTab('tab-settings', this)">
+          <span>[05] SYSTEM & ROLLEN</span>
+          <span>⚙️</span>
+        </button>
+      </div>
+
+      <div style="padding: 16px; border-top: 1px solid var(--border); font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);">
+        <div>OBS BROWSER SOURCE URL:</div>
+        <input type="text" id="obs-url-box" readonly onclick="this.select()" style="margin-top:5px; font-size:11px; color:var(--accent-lime);" />
+        <div style="margin-top:6px;">Auflösung: <strong>1920x1080</strong> (Fest)</div>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-area">
+
+      <!-- ===================================================================
+           [01] LIVE-DECK & OFFLINE SIMULATOR
+           =================================================================== -->
+      <section class="tab-view active" id="tab-live">
+        <div class="grid-2">
+          <div>
+            <!-- Quick Trigger Pad -->
+            <div class="panel">
+              <div class="panel-head">
+                <span>⚡ KONFIGURIERTE TRIGGER SOFORT AUSLÖSEN (SIMULATOR)</span>
+                <span class="mono" style="color:var(--accent-lime);">BYPASS COOLDOWN</span>
+              </div>
+              <div class="panel-body">
+                <div class="pad-grid" id="live-trigger-pads"></div>
+              </div>
+            </div>
+
+            <!-- Direct Effect & Troll Test Matrix -->
+            <div class="panel">
+              <div class="panel-head">
+                <span>🧪 DIREKT-TEST: VISUELLE SHADER, MINIGAMES & PC-TROLLS</span>
+              </div>
+              <div class="panel-body">
+                <div class="pad-grid">
+                  <button class="pad-btn" onclick="simDirect({type:'flashbang', duration_ms:3000})">
+                    <span class="pad-type">OBS SHADER</span>
+                    <span class="pad-name">💣 Flashbang</span>
+                  </button>
+                  <button class="pad-btn" onclick="simDirect({type:'drunk_mode', duration_ms:8000})">
+                    <span class="pad-type">OBS SHADER</span>
+                    <span class="pad-name">🍺 5 Promille Modus</span>
+                  </button>
+                  <button class="pad-btn" onclick="simDirect({type:'screen_shake', duration_ms:3500})">
+                    <span class="pad-type">OBS SHADER</span>
+                    <span class="pad-name">🌋 Erdbeben Shake</span>
+                  </button>
+                  <button class="pad-btn" onclick="simDirect({type:'screen_tilt', angle:180, duration_ms:7000})">
+                    <span class="pad-type">OBS SHADER</span>
+                    <span class="pad-name">🙃 180° Kopfstand</span>
+                  </button>
+                  <button class="pad-btn" onclick="simDirect({type:'fake_bsod', duration_ms:4000})">
+                    <span class="pad-type">OBS TROLL</span>
+                    <span class="pad-name">💻 Fake Bluescreen</span>
+                  </button>
+                  <button class="pad-btn" onclick="simDirect({type:'censored_bar', duration_ms:6000})">
+                    <span class="pad-type">OBS TROLL</span>
+                    <span class="pad-name">🔞 CENSORED Balken</span>
+                  </button>
+                  <button class="pad-btn" onclick="simDirect({type:'rave_mode', duration_ms:5000})">
+                    <span class="pad-type">OBS PARTY</span>
+                    <span class="pad-name">🕺 Disco Rave Strobe</span>
+                  </button>
+                  <button class="pad-btn" onclick="simDirect({type:'matrix_rain', duration_ms:8000})">
+                    <span class="pad-type">OBS CANVAS</span>
+                    <span class="pad-name">🟩 Matrix Code Rain</span>
+                  </button>
+                  <button class="pad-btn" onclick="simDirect({type:'bouncing_emotes', count:30, is_hype:true})">
+                    <span class="pad-type">PHYSICS</span>
+                    <span class="pad-name">👹 30x Emote-Schauer</span>
+                  </button>
+                  <button class="pad-btn" onclick="simDirect({type:'wheel_of_fortune', duration_ms:5500})">
+                    <span class="pad-type">MINIGAME</span>
+                    <span class="pad-name">🎡 Troll-Glücksrad</span>
+                  </button>
+                  <button class="pad-btn" onclick="simDirect({type:'timebomb', defuse_word:'cut', required_count:5, duration_sec:20})">
+                    <span class="pad-type">MINIGAME</span>
+                    <span class="pad-name">💣 Chat-Zeitbombe</span>
+                  </button>
+                  <button class="pad-btn" onclick="simDirect({type:'invert_keys', pairs:[['w','s'],['a','d']], duration_sec:10})">
+                    <span class="pad-type">PC AGENT</span>
+                    <span class="pad-name">🔄 W↔S / A↔D (10s)</span>
+                  </button>
+                  <button class="pad-btn" onclick="simDirect({type:'weapon_roulette', keys:['1','2','3'], duration_sec:6})">
+                    <span class="pad-type">PC AGENT</span>
+                    <span class="pad-name">🔫 Waffen-Roulette</span>
+                  </button>
+                  <button class="pad-btn" onclick="simDirect({type:'crouch_spam', key:'ctrl', duration_sec:5})">
+                    <span class="pad-type">PC AGENT</span>
+                    <span class="pad-name">🦵 Teabag-Zwang (5s)</span>
+                  </button>
+                </div>
+
+                <!-- Chat & TTS Simulator -->
+                <div style="margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); display:flex; gap:10px;">
+                  <input type="text" id="sim-chat-input" placeholder="Simuliere Chat-Nachricht (z.B. '!bonk', '!tts Hallo Chat', 'Ampel ist Rot', 'cut')..." />
+                  <button class="btn btn-primary" onclick="simulateChatMessage()">CHAT SENDEN</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: Live Activity Feed & Overlay Preview -->
+          <div>
+            <div class="panel">
+              <div class="panel-head">
+                <span>📡 LIVE AKTIVITÄTS-FEED</span>
+                <span class="mono" id="feed-count">0 EVENTS</span>
+              </div>
+              <div class="panel-body">
+                <div class="feed-list" id="event-feed-list"></div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <span>👁️ INTEGRIERTE OBS-OVERLAY VORSCHAU</span>
+                <button class="btn" onclick="togglePreviewIframe()">EIN/AUS</button>
+              </div>
+              <div class="panel-body" id="preview-Wrap" style="display:none; background:#000; padding:0; overflow:hidden; height:245px; position:relative;">
+                <iframe id="overlay-preview-frame" src="" style="width:1920px; height:1080px; border:0; transform:scale(0.22); transform-origin:top left; pointer-events:none;"></iframe>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           [02] TRIGGER & CHAOS MATRIX
+           =================================================================== -->
+      <section class="tab-view" id="tab-triggers">
+        <div class="panel">
+          <div class="panel-head">
+            <span>🎯 KONFIGURIERTE TRIGGER, WÖRTER, COMMANDS & KANALPUNKTE</span>
+            <div style="display:flex; gap:10px;">
+              <button class="btn btn-twitch" onclick="syncTwitchRewards()">🟣 KANALPUNKTE BEI TWITCH ANLEGEN</button>
+              <button class="btn btn-primary" onclick="openTriggerModal()">+ NEUER TRIGGER</button>
+            </div>
+          </div>
+          <div class="panel-body" style="padding:0;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>Name</th>
+                  <th>Typ</th>
+                  <th>Muster / Kosten</th>
+                  <th>Wort-Matching</th>
+                  <th>Rollen</th>
+                  <th>Aktionen</th>
+                  <th>Steuerung</th>
+                </tr>
+              </thead>
+              <tbody id="triggers-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           [03] SOUND-MANAGER & RANDOM POOLS
+           =================================================================== -->
+      <section class="tab-view" id="tab-sounds">
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-head">
+              <span>🎵 SOUND-BIBLIOTHEK (GIT-TRACKED IN /sounds/)</span>
+            </div>
+            <div class="panel-body" style="padding:0;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Dateiname</th>
+                    <th>Größe</th>
+                    <th>Individuelle Lautstärke</th>
+                    <th>Aktionen</th>
+                  </tr>
+                </thead>
+                <tbody id="sounds-table-body"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <span>⬆️ SOUND HOCHLADEN (.MP3 / .WAV - KEIN LIMIT)</span>
+            </div>
+            <div class="panel-body">
+              <p style="color:var(--text-muted); margin-bottom:12px;">
+                Hochgeladene Sounds landen direkt im Ordner <code>sounds/</code> und werden beim Commit ins Git übernommen (100% Rebuild-sicher).
+              </p>
+              <input type="file" id="sound-file-input" accept=".mp3,.wav" multiple style="margin-bottom:14px;" />
+              <button class="btn btn-primary" style="width:100%;" onclick="uploadSounds()">DATEI(EN) HOCHLADEN</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           [04] TWITCH ONBOARDING WIZARD
+           =================================================================== -->
+      <section class="tab-view" id="tab-twitch">
+        <div class="grid-equal">
+          <div class="panel">
+            <div class="panel-head">
+              <span>📖 SCHRITT-FÜR-SCHRITT EINRICHTUNG (DAU-ANLEITUNG)</span>
+            </div>
+            <div class="panel-body">
+              <ol style="padding-left:18px; display:flex; flex-direction:column; gap:12px; color:var(--text-main);">
+                <li>
+                  Öffne die <a href="https://dev.twitch.tv/console/apps" target="_blank" style="color:var(--accent-lime);">Twitch Developer Console</a> und klicke auf <strong>„Anwendung registrieren“</strong>.
+                </li>
+                <li>
+                  Vergib einen Namen (z. B. <code>StreamGremlin</code>) und trage exakt diese <strong>OAuth-Weiterleitungs-URL</strong> ein:
+                  <input type="text" id="wizard-redirect-uri" readonly onclick="this.select()" style="margin-top:6px; color:var(--accent-lime);" />
+                </li>
+                <li>
+                  Wähle als Kategorie <code>Chat Bot</code>, klicke auf <strong>Erstellen</strong> und dann auf <strong>Verwalten</strong>.
+                </li>
+                <li>
+                  Kopiere die <strong>Client-ID</strong> und erstelle ein <strong>Neues Client-Geheimnis (Client Secret)</strong>. Trage beides rechts ein und klicke auf Speichern.
+                </li>
+                <li>
+                  Klicke anschließend rechts auf <strong>„MIT TWITCH VERBINDEN (1-KLICK LOGIN)“</strong>. Fertig!
+                </li>
+              </ol>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <span>🔐 TWITCH CREDENTIALS & .ENV.AGE VERSCHLÜSSELUNG</span>
+              <span class="tag" id="badge-age-status">AGE READY</span>
+            </div>
+            <div class="panel-body">
+              <div class="form-row">
+                <label class="form-label">TWITCH CLIENT ID</label>
+                <input type="text" id="sec-twitch-id" placeholder="z.B. uo6dggojyb8d6soh92zknwmi5ej1q2" />
+              </div>
+              <div class="form-row">
+                <label class="form-label">TWITCH CLIENT SECRET</label>
+                <input type="password" id="sec-twitch-secret" placeholder="Leer lassen, um bestehendes Secret zu behalten" />
+              </div>
+              <div class="form-row">
+                <label class="form-label">BROADCASTER KANALNAME (HAUPT-ACCOUNT)</label>
+                <input type="text" id="sec-twitch-channel" placeholder="dein_twitch_name" />
+              </div>
+              <div class="form-row">
+                <label class="form-label">OPTIONALER SEPARATER BOT-ACCOUNT</label>
+                <input type="text" id="sec-twitch-bot" placeholder="Optional (Standard: läuft über Haupt-Account)" />
+              </div>
+              <div style="display:flex; gap:10px; margin-top:16px;">
+                <button class="btn btn-primary" onclick="saveSecrets()">SPEICHERN & MIT AGE VERSCHLÜSSELN</button>
+                <button class="btn btn-twitch" onclick="startTwitchOAuth()">🟣 MIT TWITCH VERBINDEN (1-KLICK OAUTH)</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           [05] SYSTEM, COOLDOWNS, AGENT, SMART-HOME & PASSWÖRTER
+           =================================================================== -->
+      <section class="tab-view" id="tab-settings">
+        <div class="grid-equal">
+          <!-- General, Cooldowns & TTS -->
+          <div class="panel">
+            <div class="panel-head">
+              <span>⚙️ ALLGEMEINE REGELN, COOLDOWNS & MICROSOFT NEURAL TTS</span>
+            </div>
+            <div class="panel-body">
+              <div class="grid-equal">
+                <div class="form-row">
+                  <label class="form-label">COMMAND-PRÄFIX ('/' STRIKT VERBOTEN!)</label>
+                  <input type="text" id="cfg-prefix" value="!" oninput="validatePrefixInput(this)" />
+                </div>
+                <div class="form-row">
+                  <label class="form-label">CHAT-VELOCITIY HYPE-SCHWELLE (MSGS / 5S)</label>
+                  <input type="number" id="cfg-velocity" value="15" />
+                </div>
+              </div>
+              <div class="grid-equal">
+                <div class="form-row">
+                  <label class="form-label">GLOBALER COOLDOWN (SEKUNDEN)</label>
+                  <input type="number" id="cfg-global-cd" value="3" />
+                </div>
+                <div class="form-row">
+                  <label class="form-label">PRO-USER COOLDOWN (SEKUNDEN)</label>
+                  <input type="number" id="cfg-user-cd" value="15" />
+                </div>
+              </div>
+              <div class="form-row">
+                <label class="form-label">STANDARD NEURAL TTS-STIMME (EDGE-TTS)</label>
+                <select id="cfg-tts-voice">
+                  <option value="de-DE-KatjaNeural">de-DE-KatjaNeural (Katja - Natürlich Weiblich)</option>
+                  <option value="de-DE-ConradNeural">de-DE-ConradNeural (Conrad - Klar Männlich)</option>
+                  <option value="de-DE-KillianNeural">de-DE-KillianNeural (Killian - Dynamisch Männlich)</option>
+                  <option value="de-DE-AmalaNeural">de-DE-AmalaNeural (Amala - Modern Weiblich)</option>
+                  <option value="en-US-ChristopherNeural">en-US-ChristopherNeural (US Narrator)</option>
+                  <option value="en-US-JennyNeural">en-US-JennyNeural (US Conversational)</option>
+                </select>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:8px; margin: 14px 0;">
+                <label class="mono"><input type="checkbox" id="cfg-bot-reply" checked /> Chatbot antwortet aktiv im öffentlichen Twitch-Chat</label>
+                <label class="mono"><input type="checkbox" id="cfg-troll-hud" checked /> Troll-HUD Countdown-Banner im Stream anzeigen</label>
+                <label class="mono"><input type="checkbox" id="cfg-auto-emotes" checked /> Jedes Chat-Emote fällt automatisch einzeln durchs Bild</label>
+              </div>
+              <button class="btn btn-primary" onclick="saveGeneralSettings()">EINSTELLUNGEN SPEICHERN (CONFIG.YAML)</button>
+            </div>
+          </div>
+
+          <!-- Gaming-PC Companion Agent & Smart-Home / n8n -->
+          <div>
+            <div class="panel">
+              <div class="panel-head">
+                <span>🖥️ WINDOWS GAMING-PC COMPANION AGENT</span>
+              </div>
+              <div class="panel-body">
+                <p style="color:var(--text-muted); margin-bottom:12px;">
+                  100% Anti-Cheat-sicher (reine Windows-Userland-Hooks). Sitzt als Tray-Icon neben der Uhr. Notfall-Stopp jederzeit mit <strong>3x ESC</strong>.
+                </p>
+                <div style="display:flex; gap:10px;">
+                  <a class="btn btn-primary" href="/api/agent/config-download" style="text-decoration:none;">1. AGENT.JSON HERUNTERLADEN</a>
+                  <a class="btn" href="/api/agent/download" style="text-decoration:none;">2. AGENT HERUNTERLADEN</a>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel" id="panel-automation">
+              <div class="panel-head">
+                <span>🔗 N8N AUTOMATISIERUNG & HOME ASSISTANT (SMART HOME)</span>
+              </div>
+              <div class="panel-body">
+                <div class="form-row">
+                  <label class="form-label">INBOUND WEBHOOK TOKEN (FÜR N8N -> STREAMGREMLIN)</label>
+                  <input type="text" id="sec-webhook-token" readonly onclick="this.select()" />
+                </div>
+                <div class="form-row">
+                  <label class="form-label">OUTBOUND N8N WEBHOOK URL (STREAMGREMLIN -> N8N)</label>
+                  <input type="text" id="sec-n8n-url" placeholder="https://n8n.orfel.de/webhook/..." />
+                </div>
+                <div class="grid-equal">
+                  <div class="form-row">
+                    <label class="form-label">HOME ASSISTANT URL</label>
+                    <input type="text" id="sec-ha-url" value="https://home.orfel.de" />
+                  </div>
+                  <div class="form-row">
+                    <label class="form-label">HOME ASSISTANT TOKEN</label>
+                    <input type="password" id="sec-ha-token" placeholder="Long-Lived Access Token" />
+                  </div>
+                </div>
+                <button class="btn btn-primary" onclick="saveAutomationSecrets()">AUTOMATISIERUNG SPEICHERN</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Password Hierarchy & Role Permissions -->
+        <div class="grid-equal">
+          <div class="panel">
+            <div class="panel-head">
+              <span>🔑 PASSWORT ÄNDERN (3-STUFEN-HIERARCHIE)</span>
+            </div>
+            <div class="panel-body">
+              <div class="form-row">
+                <label class="form-label">ZIEL-ROLLE AUSWÄHLEN</label>
+                <select id="pw-target-role">
+                  <option value="streamer">Streamer-Passwort</option>
+                  <option value="mod">Moderator-Passwort (Mods)</option>
+                  <option value="admin" id="opt-pw-admin">Admin-Passwort</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <label class="form-label">AKTUELLES EIGENES PASSWORT (NUR BEI EIGENER ROLLE NÖTIG)</label>
+                <input type="password" id="pw-current" placeholder="Aktuelles Passwort..." />
+              </div>
+              <div class="form-row">
+                <label class="form-label">NEUES PASSWORT</label>
+                <input type="password" id="pw-new" placeholder="Mindestens 4 Zeichen..." />
+              </div>
+              <button class="btn btn-primary" onclick="changePassword()">PASSWORT AKTUALISIEREN</button>
+            </div>
+          </div>
+
+          <div class="panel" id="panel-role-perms">
+            <div class="panel-head">
+              <span>🛡️ ROLLEN-FREIGABEN (WAS DÜRFEN STREAMER & MODS?)</span>
+            </div>
+            <div class="panel-body">
+              <div id="admin-Only-perms" style="margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid var(--border);">
+                <div class="form-label">FREIGABEN FÜR STREAMER (NUR DURCH ADMIN ÄNDERBAR):</div>
+                <label class="mono" style="display:block;"><input type="checkbox" id="perm-str-triggers" checked /> Streamer darf Trigger bearbeiten</label>
+                <label class="mono" style="display:block;"><input type="checkbox" id="perm-str-sounds" checked /> Streamer darf Sounds hochladen</label>
+              </div>
+              <div>
+                <div class="form-label">FREIGABEN FÜR MODERATOREN (DURCH STREAMER & ADMIN ÄNDERBAR):</div>
+                <label class="mono" style="display:block;"><input type="checkbox" id="perm-mod-tests" checked /> Mods dürfen Simulator/Test-Buttons auslösen</label>
+                <label class="mono" style="display:block;"><input type="checkbox" id="perm-mod-mute" checked /> Mods dürfen Master-Audio stummschalten</label>
+              </div>
+              <button class="btn btn-primary" style="margin-top:12px;" onclick="saveRolePermissions()">FREIGABEN SPEICHERN</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- =========================================================================
+       MODAL 1: LOGIN & FIRST-TIME SETUP
+       ========================================================================= -->
+  <div class="modal-backdrop" id="auth-modal">
+    <div class="modal-box">
+      <div class="panel-head">
+        <span id="auth-modal-title">🔐 STREAMGREMLIN // AUTHENTIFIZIERUNG</span>
+      </div>
+      <div class="panel-body">
+        <!-- Login Form -->
+        <div id="login-view">
+          <p style="color:var(--text-muted); margin-bottom:14px;">
+            Gib dein Passwort ein. Das System erkennt automatisch deine Rolle (<strong>Admin</strong>, <strong>Streamer</strong> oder <strong>Moderator</strong>).
+          </p>
+          <div class="form-row">
+            <label class="form-label">PASSWORT</label>
+            <input type="password" id="login-password" placeholder="Passwort eingeben..." onkeydown="if(event.key==='Enter') doLogin()" />
+          </div>
+          <button class="btn btn-primary" style="width:100%;" onclick="doLogin()">ANMELDEN</button>
+        </div>
+
+        <!-- First-Time Setup View -->
+        <div id="setup-view" style="display:none;">
+          <p style="color:var(--accent-lime); font-family:var(--font-mono); margin-bottom:12px;">
+            🚀 ERSTEINRICHTUNG: Lege jetzt die Passwörter für die 3 Rollen fest!
+          </p>
+          <div class="form-row">
+            <label class="form-label">1. ADMIN-PASSWORT (VOLLZUGRIFF)</label>
+            <input type="password" id="setup-admin-pw" placeholder="Admin-Passwort (mind. 4 Zeichen)" />
+          </div>
+          <div class="form-row">
+            <label class="form-label">2. STREAMER-PASSWORT (OPTIONAL - SONST AUTOMATISCH GENERIERT)</label>
+            <input type="password" id="setup-streamer-pw" placeholder="Streamer-Passwort" />
+          </div>
+          <div class="form-row">
+            <label class="form-label">3. MODERATOR-PASSWORT (OPTIONAL - SONST AUTOMATISCH GENERIERT)</label>
+            <input type="password" id="setup-mod-pw" placeholder="Mod-Passwort" />
+          </div>
+          <button class="btn btn-primary" style="width:100%;" onclick="doInitialSetup()">PASSWÖRTER VERSCHLÜSSELT SPEICHERN</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       MODAL 2: TRIGGER EDITOR (+ NEUER TRIGGER)
+       ========================================================================= -->
+  <div class="modal-backdrop" id="trigger-modal">
+    <div class="modal-box">
+      <div class="panel-head">
+        <span>⚡ TRIGGER ERSTELLEN / BEARBEITEN</span>
+        <button class="btn" onclick="closeTriggerModal()">✕</button>
+      </div>
+      <div class="panel-body">
+        <input type="hidden" id="trig-edit-index" value="-1" />
+        <div class="grid-equal">
+          <div class="form-row">
+            <label class="form-label">ANZEIGENAME</label>
+            <input type="text" id="trig-name" placeholder="z.B. Roter Alarm" />
+          </div>
+          <div class="form-row">
+            <label class="form-label">TRIGGER-TYP</label>
+            <select id="trig-type">
+              <option value="command">Chat-Command (z.B. !bonk)</option>
+              <option value="chat_word">Trigger-Wort im Chat</option>
+              <option value="channel_point">Twitch Kanalpunkte-Belohnung</option>
+              <option value="bits">Twitch Bits / Cheering</option>
+              <option value="sub">Twitch Sub / Gift-Sub</option>
+              <option value="raid">Twitch Raid</option>
+              <option value="follow">Neuer Follower</option>
+              <option value="hype_train">Twitch Hype Train</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid-equal">
+          <div class="form-row">
+            <label class="form-label">WORT / COMMAND / BELOHNUNGS-TITEL</label>
+            <input type="text" id="trig-pattern" placeholder="z.B. rot oder Steuerung Invertieren" />
+          </div>
+          <div class="form-row">
+            <label class="form-label">WORT-MATCHING (CASE-INSENSITIVE)</label>
+            <select id="trig-match-mode">
+              <option value="word">Option A: Nur ganzes Wort ("Ampel ist Rot" = JA, "Brot" = NEIN)</option>
+              <option value="substring">Option B: Teilwort / Substring ("Brot" = JA, "Rote" = JA)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid-equal">
+          <div class="form-row">
+            <label class="form-label">KANALPUNKTE-KOSTEN / MIN. BITS</label>
+            <input type="number" id="trig-cost" value="1000" />
+          </div>
+          <div class="form-row">
+            <label class="form-label">TRIGGER-COOLDOWN (SEKUNDEN)</label>
+            <input type="number" id="trig-cd" value="10" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">BERECHTIGTE CHAT-ROLLEN</label>
+          <select id="trig-role">
+            <option value="everyone">Jeder Zuschauer (Everyone)</option>
+            <option value="subscriber">Ab Subscriber / VIP / Mod</option>
+            <option value="mod">Nur Moderatoren & Broadcaster</option>
+            <option value="broadcaster">Nur Broadcaster (Streamer selbst)</option>
+          </select>
+        </div>
+
+        <div style="border-top:1px solid var(--border); padding-top:12px; margin-top:8px;">
+          <div class="form-label">AUSZUFÜHRENDE AKTIONEN:</div>
+          <div class="grid-equal">
+            <div class="form-row">
+              <label class="form-label">SOUND-POOL (KOMMASEPARIERT FÜR ZUFALLSAUSWAHL)</label>
+              <input type="text" id="trig-sounds" placeholder="z.B. bonk.wav, airhorn.wav" />
+            </div>
+            <div class="form-row">
+              <label class="form-label">VISUELLER OVERLAY-EFFEKT</label>
+              <select id="trig-visual">
+                <option value="">-- Kein visueller Effekt --</option>
+                <option value="bouncing_emotes">Bouncing Emotes (Physik-Drop)</option>
+                <option value="flashbang">CS2 Flashbang Granate</option>
+                <option value="screen_shake">Erdbeben Screen-Shake</option>
+                <option value="screen_tilt">Screen-Tilt (Schräglage)</option>
+                <option value="drunk_mode">5 Promille Betrunken-Modus</option>
+                <option value="fake_bsod">Fake Windows Bluescreen</option>
+                <option value="censored_bar">CENSORED Zensurbalken</option>
+                <option value="rave_mode">Disco Rave Strobe</option>
+                <option value="matrix_rain">Matrix Digital Code Rain</option>
+                <option value="pixelate">8-Bit Retro Pixelate</option>
+                <option value="invert_colors">Foto-Negativ Farben</option>
+                <option value="tunnel_vision">Tunnelblick</option>
+                <option value="confetti_burst">Konfetti-Kanone</option>
+                <option value="wheel_of_fortune">Minigame: Troll-Glücksrad</option>
+                <option value="timebomb">Minigame: Chat-Zeitbombe</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid-equal">
+            <div class="form-row">
+              <label class="form-label">GAMING-PC AGENT TROLL</label>
+              <select id="trig-agent">
+                <option value="">-- Kein Steuerungs-Troll --</option>
+                <option value="invert_keys">Tasten-Invertierung (z.B. W↔S, A↔D)</option>
+                <option value="jam_key">Taste gedrückt halten / spammen</option>
+                <option value="disable_key">Taste temporär deaktivieren</option>
+                <option value="weapon_roulette">Shooter Waffen-Roulette (1-2-3)</option>
+                <option value="reload_addiction">Zwanghaftes Nachladen (R)</option>
+                <option value="jump_frenzy">Känguru-Modus (Space Stakkato)</option>
+                <option value="crouch_spam">Teabag-Modus (Ctrl Spam)</option>
+                <option value="smart_home">Smart-Home: Licht auf Rot schalten</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label class="form-label">DAUER DES EFFEKTES / TROLLS (SEKUNDEN)</label>
+              <input type="number" id="trig-duration" value="10" />
+            </div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" style="width:100%; margin-top:12px;" onclick="saveTriggerFromModal()">TRIGGER SPEICHERN</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast-box">GESPEICHERT</div>
+
+  <script>
+    let currentRole = null;
+    let appConfig = {};
+    let soundsList = [];
+    let dashboardWs = null;
+
+    function showToast(msg) {
+      const el = document.getElementById('toast-box');
+      el.textContent = msg;
+      el.style.display = 'block';
+      setTimeout(() => { el.style.display = 'none'; }, 2800);
+    }
+
+    function switchTab(tabId, btn) {
+      document.querySelectorAll('.tab-view').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+      document.getElementById(tabId).classList.add('active');
+      if (btn) btn.classList.add('active');
+    }
+
+    function validatePrefixInput(input) {
+      if (input.value.includes('/')) {
+        input.value = input.value.replace(/\//g, '!');
+        showToast("SICHERHEITS-REGEL: '/' ist als Präfix verboten!");
+      }
+    }
+
+    // =========================================================================
+    // 1. Auth & Bootstrapping
+    // =========================================================================
+    async function checkAuth() {
+      document.getElementById('obs-url-box').value = `${location.origin}/overlay`;
+      document.getElementById('wizard-redirect-uri').value = `${location.origin}/api/twitch/callback`;
+
+      const res = await fetch('/api/auth/me');
+      const data = await res.json();
+
+      if (!data.authenticated) {
+        document.getElementById('auth-modal').style.display = 'flex';
+        if (data.setup_required) {
+          document.getElementById('login-view').style.display = 'none';
+          document.getElementById('setup-view').style.display = 'block';
+        } else {
+          document.getElementById('login-view').style.display = 'block';
+          document.getElementById('setup-view').style.display = 'none';
+        }
+        return;
+      }
+
+      document.getElementById('auth-modal').style.display = 'none';
+      currentRole = data.role;
+      document.getElementById('badge-role').textContent = `ROLLE: ${currentRole.toUpperCase()}`;
+      applyRoleRestrictions(currentRole);
+      await loadFullConfig();
+      await loadSoundsTable();
+      connectDashboardWs();
+    }
+
+    function applyRoleRestrictions(role) {
+      if (role === 'mod') {
+        document.getElementById('nav-triggers').style.display = 'none';
+        document.getElementById('nav-sounds').style.display = 'none';
+        document.getElementById('nav-twitch').style.display = 'none';
+        document.getElementById('nav-settings').style.display = 'none';
+      } else {
+        document.getElementById('nav-triggers').style.display = 'flex';
+        document.getElementById('nav-sounds').style.display = 'flex';
+        document.getElementById('nav-twitch').style.display = 'flex';
+        document.getElementById('nav-settings').style.display = 'flex';
+      }
+      if (role !== 'admin') {
+        document.getElementById('opt-pw-admin').style.display = 'none';
+        document.getElementById('admin-Only-perms').style.display = 'none';
+        document.getElementById('panel-automation').style.display = 'none';
+      }
+    }
+
+    async function doInitialSetup() {
+      const admin_password = document.getElementById('setup-admin-pw').value;
+      const streamer_password = document.getElementById('setup-streamer-pw').value;
+      const mod_password = document.getElementById('setup-mod-pw').value;
+
+      const res = await fetch('/api/auth/setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ admin_password, streamer_password, mod_password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.detail || 'Fehler beim Setup');
+        return;
+      }
+      alert(
+        `Setup erfolgreich!\n\nAdmin-PW: ${data.generated_credentials.admin_password}\nStreamer-PW: ${data.generated_credentials.streamer_password}\nMod-PW: ${data.generated_credentials.mod_password}`
+      );
+      checkAuth();
+    }
+
+    async function doLogin() {
+      const password = document.getElementById('login-password').value;
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      if (!res.ok) {
+        showToast('FALSCHES PASSWORT!');
+        return;
+      }
+      document.getElementById('login-password').value = '';
+      checkAuth();
+    }
+
+    async function logout() {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      location.reload();
+    }
+
+    // =========================================================================
+    // 2. Load & Save Config
+    // =========================================================================
+    async function loadFullConfig() {
+      const res = await fetch('/api/config');
+      if (!res.ok) return;
+      const data = await res.json();
+      appConfig = data.config || {};
+      soundsList = data.sounds_list || [];
+      updateStatusHeader(data.status || {});
+      renderTriggerPads();
+      renderTriggersTable();
+      populateSettingsForm();
+    }
+
+    function updateStatusHeader(st) {
+      const ledTw = document.getElementById('led-twitch');
+      const txtTw = document.getElementById('txt-twitch');
+      if (st.twitch_connected) {
+        ledTw.className = 'led on';
+        txtTw.textContent = st.twitch_broadcaster || 'LIVE';
+      } else if (st.twitch_configured) {
+        ledTw.className = 'led warn';
+        txtTw.textContent = 'BEREIT';
+      } else {
+        ledTw.className = 'led off';
+        txtTw.textContent = 'NICHT EINGERICHTET';
+      }
+
+      const ledAg = document.getElementById('led-agent');
+      const txtAg = document.getElementById('txt-agent');
+      const agCount = st.agent_count || 0;
+      ledAg.className = agCount > 0 ? 'led on' : 'led off';
+      txtAg.textContent = `${agCount} VERBUNDEN`;
+
+      const ledOv = document.getElementById('led-overlay');
+      const txtOv = document.getElementById('txt-overlay');
+      const ovCount = st.overlay_count || 0;
+      ledOv.className = ovCount > 0 ? 'led on' : 'led warn';
+      txtOv.textContent = `${ovCount} AKTIV`;
+
+      const btnMute = document.getElementById('btn-mute');
+      btnMute.textContent = st.master_muted ? '🔇 AUDIO: STUMM' : '🔊 AUDIO: AN';
+    }
+
+    function renderTriggerPads() {
+      const container = document.getElementById('live-trigger-pads');
+      const triggers = appConfig.triggers || [];
+      container.innerHTML = triggers.map(t => `
+        <button class="pad-btn" onclick="testSavedTrigger('${t.id}')">
+          <span class="pad-type">${t.type} // ${t.pattern || t.title || ''}</span>
+          <span class="pad-name">${t.name || t.title || t.id}</span>
+        </button>
+      `).join('');
+    }
+
+    function renderTriggersTable() {
+      const tbody = document.getElementById('triggers-table-body');
+      const triggers = appConfig.triggers || [];
+      tbody.innerHTML = triggers.map((t, idx) => `
+        <tr>
+          <td>
+            <input type="checkbox" ${t.enabled !== false ? 'checked' : ''} onchange="toggleTriggerEnabled(${idx}, this.checked)" />
+          </td>
+          <td><strong>${t.name || t.title || t.id}</strong></td>
+          <td><span class="tag">${t.type}</span></td>
+          <td><code>${t.type === 'channel_point' ? (t.cost + ' PTS') : (t.pattern || '-')}</code></td>
+          <td>${t.type === 'chat_word' ? (t.match_mode === 'substring' ? 'Teilwort (Substring)' : 'Ganzes Wort (\\b)') : '-'}</td>
+          <td>${(t.allowed_roles || ['everyone']).join(', ')}</td>
+          <td>${(t.actions || []).map(a => a.type).join(' + ')}</td>
+          <td style="display:flex; gap:6px;">
+            <button class="btn" onclick="testSavedTrigger('${t.id}')">▶ TEST</button>
+            <button class="btn btn-danger" onclick="deleteTrigger(${idx})">✕</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function populateSettingsForm() {
+      const gen = appConfig.general || {};
+      const tts = appConfig.tts || {};
+      const sec = appConfig.system_secrets || {};
+
+      document.getElementById('cfg-prefix').value = gen.prefix || '!';
+      document.getElementById('cfg-velocity').value = gen.chat_velocity_threshold ?? 15;
+      document.getElementById('cfg-global-cd').value = gen.global_cooldown_sec ?? 3;
+      document.getElementById('cfg-user-cd').value = gen.user_cooldown_sec ?? 15;
+      document.getElementById('cfg-tts-voice').value = tts.default_voice || 'de-DE-KatjaNeural';
+      document.getElementById('cfg-bot-reply').checked = gen.bot_chat_reply !== false;
+      document.getElementById('cfg-troll-hud').checked = gen.troll_hud_enabled !== false;
+      document.getElementById('cfg-auto-emotes').checked = gen.chat_emotes_auto_bounce !== false;
+
+      if (sec.twitch_client_id !== undefined) {
+        document.getElementById('sec-twitch-id').value = sec.twitch_client_id || '';
+        document.getElementById('sec-twitch-channel').value = sec.twitch_broadcaster_channel || '';
+        document.getElementById('sec-twitch-bot').value = sec.twitch_bot_channel || '';
+        document.getElementById('badge-age-status').textContent = sec.env_age_exists ? '🔒 .ENV.AGE AKTIV' : ' .ENV BEREIT';
+      }
+      if (sec.webhook_token !== undefined) {
+        document.getElementById('sec-webhook-token').value = sec.webhook_token || '';
+        document.getElementById('sec-n8n-url').value = sec.n8n_webhook_url || '';
+        document.getElementById('sec-ha-url').value = sec.ha_base_url || 'https://home.orfel.de';
+      }
+    }
+
+    async function saveGeneralSettings() {
+      appConfig.general = appConfig.general || {};
+      appConfig.general.prefix = document.getElementById('cfg-prefix').value || '!';
+      appConfig.general.chat_velocity_threshold = parseInt(document.getElementById('cfg-velocity').value || '15', 10);
+      appConfig.general.global_cooldown_sec = parseInt(document.getElementById('cfg-global-cd').value || '3', 10);
+      appConfig.general.user_cooldown_sec = parseInt(document.getElementById('cfg-user-cd').value || '15', 10);
+      appConfig.general.bot_chat_reply = document.getElementById('cfg-bot-reply').checked;
+      appConfig.general.troll_hud_enabled = document.getElementById('cfg-troll-hud').checked;
+      appConfig.general.chat_emotes_auto_bounce = document.getElementById('cfg-auto-emotes').checked;
+
+      appConfig.tts = appConfig.tts || {};
+      appConfig.tts.default_voice = document.getElementById('cfg-tts-voice').value;
+
+      await pushConfigUpdate();
+    }
+
+    async function pushConfigUpdate() {
+      const res = await fetch('/api/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(appConfig),
+      });
+      if (res.ok) {
+        showToast('CONFIG.YAML GESPEICHERT & HOT-RELOADED!');
+        await loadFullConfig();
+      } else {
+        const err = await res.json();
+        alert(err.detail || 'Speicherfehler');
+      }
+    }
+
+    // =========================================================================
+    // 3. Trigger Builder Modal
+    // =========================================================================
+    function openTriggerModal() {
+      document.getElementById('trigger-modal').style.display = 'flex';
+    }
+    function closeTriggerModal() {
+      document.getElementById('trigger-modal').style.display = 'none';
+    }
+
+    async function saveTriggerFromModal() {
+      const name = document.getElementById('trig-name').value.trim() || 'Neuer Trigger';
+      const type = document.getElementById('trig-type').value;
+      const pattern = document.getElementById('trig-pattern').value.trim() || 'troll';
+      const match_mode = document.getElementById('trig-match-mode').value;
+      const cost = parseInt(document.getElementById('trig-cost').value || '1000', 10);
+      const cooldown_sec = parseInt(document.getElementById('trig-cd').value || '10', 10);
+      const role = document.getElementById('trig-role').value;
+      const duration = parseInt(document.getElementById('trig-duration').value || '10', 10);
+
+      const actions = [];
+      const soundInput = document.getElementById('trig-sounds').value.trim();
+      if (soundInput) {
+        const pool = soundInput.split(',').map(s => s.trim()).filter(Boolean);
+        actions.push({ type: 'sound', pool, volume: 0.85 });
+      }
+      const vis = document.getElementById('trig-visual').value;
+      if (vis) {
+        actions.push({ type: vis, duration_ms: duration * 1000, duration_sec: duration, count: 25, is_hype: true });
+      }
+      const ag = document.getElementById('trig-agent').value;
+      if (ag) {
+        actions.push({
+          type: ag,
+          pairs: [['w', 's'], ['a', 'd']],
+          key: 'space',
+          keys: ['1', '2', '3'],
+          rgb_color: [255, 0, 0],
+          duration_sec: duration,
+        });
+        actions.push({ type: 'troll_hud', title: name, duration_sec: duration });
+      }
+
+      const newTrig = {
+        id: 'trig_' + Date.now(),
+        name,
+        title: name,
+        enabled: true,
+        type,
+        pattern,
+        match_mode,
+        cost,
+        cooldown_sec,
+        allowed_roles: [role],
+        actions,
+      };
+
+      appConfig.triggers = appConfig.triggers || [];
+      appConfig.triggers.push(newTrig);
+      closeTriggerModal();
+      await pushConfigUpdate();
+    }
+
+    async function toggleTriggerEnabled(idx, enabled) {
+      appConfig.triggers[idx].enabled = enabled;
+      await pushConfigUpdate();
+    }
+
+    async function deleteTrigger(idx) {
+      appConfig.triggers.splice(idx, 1);
+      await pushConfigUpdate();
+    }
+
+    // =========================================================================
+    // 4. Sounds Manager & Volume Sliders
+    // =========================================================================
+    async function loadSoundsTable() {
+      const res = await fetch('/api/sounds');
+      if (!res.ok) return;
+      const data = await res.json();
+      const tbody = document.getElementById('sounds-table-body');
+      tbody.innerHTML = (data.sounds || []).map(s => `
+        <tr>
+          <td><code>${s.name}</code></td>
+          <td>${s.size_kb} KB</td>
+          <td>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <input type="range" min="0" max="1" step="0.05" value="${s.volume}"
+                oninput="this.nextElementSibling.textContent = Math.round(this.value*100)+'%'"
+                onchange="updateSoundVolume('${s.name}', parseFloat(this.value))" />
+              <span class="mono">${Math.round(s.volume * 100)}%</span>
+            </div>
+          </td>
+          <td style="display:flex; gap:8px;">
+            <button class="btn" onclick="new Audio('${s.url}').play()">🎧 VORHÖREN</button>
+            <button class="btn btn-primary" onclick="simDirect({type:'sound', pool:['${s.name}'], volume:${s.volume}})">📺 IN OBS SPIELEN</button>
+            <button class="btn btn-danger" onclick="deleteSound('${s.name}')">✕</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function updateSoundVolume(filename, volume) {
+      appConfig.sounds = appConfig.sounds || {};
+      appConfig.sounds[filename] = { volume };
+      await pushConfigUpdate();
+    }
+
+    async function uploadSounds() {
+      const input = document.getElementById('sound-file-input');
+      if (!input.files.length) return;
+      for (const file of input.files) {
+        const fd = new FormData();
+        fd.append('file', file);
+        await fetch('/api/sounds/upload', { method: 'POST', body: fd });
+      }
+      input.value = '';
+      showToast('SOUND(S) IN /sounds/ GESPEICHERT!');
+      await loadSoundsTable();
+      await loadFullConfig();
+    }
+
+    async function deleteSound(filename) {
+      await fetch(`/api/sounds/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+      await loadSoundsTable();
+    }
+
+    // =========================================================================
+    // 5. Simulator, Panic, Twitch & Passwords
+    // =========================================================================
+    async function triggerPanic() {
+      await fetch('/api/panic', { method: 'POST' });
+      showToast('🛑 NOTFALL-PANIK AUSGELÖST!');
+    }
+
+    async function toggleMute() {
+      const res = await fetch('/api/mute', { method: 'POST' });
+      const data = await res.json();
+      document.getElementById('btn-mute').textContent = data.master_muted ? '🔇 AUDIO: STUMM' : '🔊 AUDIO: AN';
+    }
+
+    async function testSavedTrigger(triggerId) {
+      await fetch('/api/test/trigger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trigger_id: triggerId }),
+      });
+      showToast(`TRIGGER AUSGELÖST: ${triggerId}`);
+    }
+
+    async function simDirect(actionObj) {
+      await fetch('/api/test/trigger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: actionObj }),
+      });
+      showToast(`DIREKT-EFFEKT: ${actionObj.type}`);
+    }
+
+    async function simulateChatMessage() {
+      const input = document.getElementById('sim-chat-input');
+      const text = input.value.trim();
+      if (!text) return;
+      const res = await fetch('/api/test/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user: 'ChatTester', text }),
+      });
+      const data = await res.json();
+      input.value = '';
+      showToast(`CHAT SIMULIERT (${(data.matched || []).length} Treffer)`);
+    }
+
+    function togglePreviewIframe() {
+      const wrap = document.getElementById('preview-Wrap');
+      const frame = document.getElementById('overlay-preview-frame');
+      if (wrap.style.display === 'none') {
+        wrap.style.display = 'block';
+        frame.src = '/overlay';
+      } else {
+        wrap.style.display = 'none';
+        frame.src = '';
+      }
+    }
+
+    async function saveSecrets() {
+      const payload = {
+        TWITCH_CLIENT_ID: document.getElementById('sec-twitch-id').value,
+        TWITCH_BROADCASTER_CHANNEL: document.getElementById('sec-twitch-channel').value,
+        TWITCH_BOT_CHANNEL: document.getElementById('sec-twitch-bot').value,
+      };
+      const sec = document.getElementById('sec-twitch-secret').value;
+      if (sec) payload.TWITCH_CLIENT_SECRET = sec;
+
+      const res = await fetch('/api/secrets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        showToast('CREDENTIALS GESPEICHERT & .ENV.AGE AKTUALISIERT!');
+        await loadFullConfig();
+      }
+    }
+
+    async function saveAutomationSecrets() {
+      const payload = {
+        N8N_WEBHOOK_URL: document.getElementById('sec-n8n-url').value,
+        HA_BASE_URL: document.getElementById('sec-ha-url').value,
+      };
+      const haTok = document.getElementById('sec-ha-token').value;
+      if (haTok) payload.HA_ACCESS_TOKEN = haTok;
+
+      await fetch('/api/secrets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      showToast('N8N & HOME ASSISTANT GESPEICHERT!');
+    }
+
+    async function startTwitchOAuth() {
+      await saveSecrets();
+      const res = await fetch('/api/twitch/auth-url');
+      const data = await res.json();
+      if (data.auth_url) {
+        location.href = data.auth_url;
+      }
+    }
+
+    async function syncTwitchRewards() {
+      const res = await fetch('/api/twitch/sync-rewards', { method: 'POST' });
+      const data = await res.json();
+      if (data.ok) {
+        showToast(`TWITCH KANALPUNKTE SYNCHRONISIERT (${(data.created || []).length} neu)`);
+      } else {
+        showToast(data.error || 'Twitch nicht verbunden');
+      }
+    }
+
+    async function changePassword() {
+      const target_role = document.getElementById('pw-target-role').value;
+      const current_password = document.getElementById('pw-current').value;
+      const new_password = document.getElementById('pw-new').value;
+
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_role, current_password, new_password }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        document.getElementById('pw-current').value = '';
+        document.getElementById('pw-new').value = '';
+        showToast(`PASSWORT FÜR ${target_role.toUpperCase()} AKTUALISIERT!`);
+      } else {
+        alert(data.detail || 'Fehler bei Passwortänderung');
+      }
+    }
+
+    async function saveRolePermissions() {
+      appConfig.auth = appConfig.auth || {};
+      appConfig.auth.permissions = appConfig.auth.permissions || { streamer: {}, mod: {} };
+      appConfig.auth.permissions.streamer.can_manage_triggers = document.getElementById('perm-str-triggers').checked;
+      appConfig.auth.permissions.streamer.can_upload_sounds = document.getElementById('perm-str-sounds').checked;
+      appConfig.auth.permissions.mod.can_trigger_tests = document.getElementById('perm-mod-tests').checked;
+      appConfig.auth.permissions.mod.can_mute_audio = document.getElementById('perm-mod-mute').checked;
+      await pushConfigUpdate();
+    }
+
+    // =========================================================================
+    // 6. Real-Time Dashboard WebSocket (Live Feed & Telemetry)
+    // =========================================================================
+    function connectDashboardWs() {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      dashboardWs = new WebSocket(`${proto}//${location.host}/ws/dashboard`);
+
+      dashboardWs.onmessage = (evt) => {
+        const msg = JSON.parse(evt.data);
+        if (msg.type === 'init') {
+          updateStatusHeader(msg.status || {});
+          renderEventFeed(msg.recent_events || []);
+        } else if (msg.type === 'status') {
+          updateStatusHeader(msg.status || {});
+        } else if (msg.type === 'event') {
+          prependEventFeed(msg.event);
+        }
+      };
+
+      dashboardWs.onclose = () => {
+        setTimeout(connectDashboardWs, 2500);
+      };
+    }
+
+    function renderEventFeed(events) {
+      const list = document.getElementById('event-feed-list');
+      document.getElementById('feed-count').textContent = `${events.length} EVENTS`;
+      list.innerHTML = events.map(formatEventItem).join('');
+    }
+
+    function prependEventFeed(ev) {
+      const list = document.getElementById('event-feed-list');
+      list.insertAdjacentHTML('afterbegin', formatEventItem(ev));
+      document.getElementById('feed-count').textContent = `${list.children.length} EVENTS`;
+    }
+
+    function formatEventItem(ev) {
+      const cls = ev.type === 'panic' ? 'feed-item panic' : 'feed-item';
+      return `
+        <div class="${cls}">
+          <div>
+            <span class="tag">${ev.type}</span>
+            <strong style="margin-left:6px;">${ev.title}</strong>
+            <span style="color:var(--text-muted); margin-left:6px;">@${ev.user}</span>
+            <div style="color:var(--text-muted); margin-top:2px;">${ev.details || ''}</div>
+          </div>
+          <span style="color:var(--accent-lime);">${ev.time_str}</span>
+        </div>
+      `;
+    }
+
+    checkAuth();
+  </script>
+</body>
+</html>

@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=1920, height=1080, initial-scale=1.0" />
+  <title>StreamGremlin OBS Overlay (1920x1080)</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    html, body {
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      background: transparent !important;
+      font-family: 'JetBrains Mono', 'Consolas', 'Segoe UI', monospace;
+      color: #f4f4f6;
+    }
+
+    #stage {
+      position: relative;
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), filter 0.3s ease;
+    }
+
+    /* Layer 1: Fullscreen Visual Filters */
+    #fx-flashbang {
+      position: absolute;
+      inset: 0;
+      background: #ffffff;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 900;
+    }
+    #fx-blackout {
+      position: absolute;
+      inset: 0;
+      background: #000000;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 850;
+      transition: opacity 0.25s ease;
+    }
+    #fx-tunnel {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at center, transparent 140px, rgba(0,0,0,0.98) 290px);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 800;
+      transition: opacity 0.3s ease;
+    }
+    #fx-rave {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0;
+      z-index: 790;
+      mix-blend-mode: screen;
+    }
+    .rave-active {
+      opacity: 0.55 !important;
+      animation: raveStrobe 0.18s infinite alternate;
+    }
+    @keyframes raveStrobe {
+      0%   { background: radial-gradient(circle, rgba(255,0,128,0.6), rgba(0,255,180,0.2)); }
+      33%  { background: radial-gradient(circle, rgba(0,255,100,0.6), rgba(145,70,255,0.3)); }
+      66%  { background: radial-gradient(circle, rgba(0,200,255,0.6), rgba(255,230,0,0.3)); }
+      100% { background: radial-gradient(circle, rgba(160,32,240,0.7), rgba(255,40,0,0.3)); }
+    }
+
+    /* Screen Shake / Drunk / Glitch / Invert / Mirror */
+    .shake-active {
+      animation: earthquake 0.07s infinite;
+    }
+    @keyframes earthquake {
+      0%   { transform: translate(0, 0) rotate(0deg); }
+      25%  { transform: translate(-18px, 14px) rotate(-1.2deg); }
+      50%  { transform: translate(16px, -16px) rotate(1.4deg); }
+      75%  { transform: translate(-14px, -10px) rotate(-0.8deg); }
+      100% { transform: translate(12px, 15px) rotate(1deg); }
+    }
+    .drunk-active {
+      animation: drunkSway 2.4s ease-in-out infinite alternate;
+      filter: blur(5px) saturate(2.2) hue-rotate(35deg);
+    }
+    @keyframes drunkSway {
+      0%   { transform: scale(1.04) rotate(-2.5deg) translateX(-22px); }
+      100% { transform: scale(1.07) rotate(2.5deg) translateX(22px); }
+    }
+    .glitch-active {
+      animation: cyberGlitch 0.14s steps(2) infinite;
+    }
+    @keyframes cyberGlitch {
+      0%   { filter: hue-rotate(0deg) contrast(1.8); clip-path: inset(0 0 0 0); }
+      50%  { filter: hue-rotate(140deg) invert(0.25) contrast(2.4); transform: skewX(4deg); }
+      100% { filter: hue-rotate(290deg) contrast(1.5); transform: skewX(-3deg); }
+    }
+    .invert-active {
+      backdrop-filter: invert(1) hue-rotate(180deg);
+      background: rgba(255, 255, 255, 0.08);
+    }
+    .pixelate-active {
+      background-image:
+        linear-gradient(rgba(18, 255, 120, 0.14) 2px, transparent 2px),
+        linear-gradient(90deg, rgba(18, 255, 120, 0.14) 2px, transparent 2px);
+      background-size: 16px 16px;
+      backdrop-filter: blur(4px) contrast(1.8);
+    }
+    .mirror-active {
+      transform: scaleX(-1);
+    }
+
+    /* Fake Windows BSOD */
+    #fx-bsod {
+      position: absolute;
+      inset: 0;
+      background: #0078d7;
+      color: #ffffff;
+      font-family: 'Segoe UI', sans-serif;
+      padding: 140px 180px;
+      display: none;
+      z-index: 950;
+    }
+    #fx-bsod .sad { font-size: 130px; font-weight: 300; margin-bottom: 30px; }
+    #fx-bsod .msg { font-size: 32px; line-height: 1.45; max-width: 1100px; margin-bottom: 40px; }
+    #fx-bsod .code { font-size: 20px; opacity: 0.9; font-family: Consolas, monospace; }
+
+    /* Censored Bar */
+    #fx-censored {
+      position: absolute;
+      top: 42%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-4deg);
+      background: #09090b;
+      border: 4px solid #ef4444;
+      padding: 24px 90px;
+      font-size: 56px;
+      font-weight: 900;
+      letter-spacing: 10px;
+      color: #ef4444;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.85);
+      display: none;
+      z-index: 820;
+    }
+
+    /* Layer 2: Physics & Matrix Canvas */
+    #physics-canvas {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+      pointer-events: none;
+      z-index: 500;
+    }
+
+    /* Layer 3: Troll-HUD Countdown Stack (Top Right / Center) */
+    #troll-hud-container {
+      position: absolute;
+      top: 32px;
+      right: 36px;
+      width: 440px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 920;
+      pointer-events: none;
+    }
+    .troll-hud-card {
+      background: rgba(9, 10, 15, 0.92);
+      border: 2px solid #a855f7;
+      border-left: 8px solid #22c55e;
+      padding: 14px 18px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.75);
+      animation: slideInRight 0.25s ease-out;
+    }
+    @keyframes slideInRight {
+      from { transform: translateX(120%); opacity: 0; }
+      to   { transform: translateX(0); opacity: 1; }
+    }
+    .troll-hud-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 16px;
+      font-weight: 800;
+      color: #f8fafc;
+      margin-bottom: 6px;
+    }
+    .troll-hud-user {
+      font-size: 13px;
+      color: #4ade80;
+      margin-bottom: 8px;
+    }
+    .troll-hud-bar-bg {
+      width: 100%;
+      height: 8px;
+      background: #1e293b;
+      overflow: hidden;
+    }
+    .troll-hud-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #22c55e, #a855f7);
+      width: 100%;
+      transition: width 0.1s linear;
+    }
+
+    /* TTS & Fake Alert Banner */
+    #alert-banner {
+      position: absolute;
+      bottom: 64px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(10, 12, 18, 0.94);
+      border: 2px solid #22c55e;
+      padding: 18px 34px;
+      min-width: 520px;
+      max-width: 960px;
+      display: none;
+      align-items: center;
+      gap: 20px;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.85);
+      z-index: 910;
+    }
+    #alert-banner img {
+      width: 64px;
+      height: 64px;
+      object-fit: contain;
+    }
+    #alert-banner .alert-title {
+      font-size: 15px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: #22c55e;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+    #alert-banner .alert-text {
+      font-size: 22px;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    /* Jumpscare / GIF Popup */
+    #jumpscare-box {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.1);
+      display: none;
+      z-index: 930;
+      transition: transform 0.12s cubic-bezier(0.17, 0.89, 0.32, 1.49);
+    }
+    #jumpscare-box img {
+      max-width: 650px;
+      max-height: 650px;
+      filter: drop-shadow(0 0 40px rgba(168, 85, 247, 0.9));
+    }
+
+    /* Minigame: Timebomb Widget */
+    #timebomb-widget {
+      position: absolute;
+      top: 40px;
+      left: 40px;
+      width: 420px;
+      background: rgba(15, 10, 12, 0.95);
+      border: 3px solid #ef4444;
+      padding: 20px;
+      display: none;
+      z-index: 925;
+      box-shadow: 0 0 35px rgba(239, 68, 68, 0.55);
+    }
+    .bomb-title {
+      font-size: 20px;
+      font-weight: 900;
+      color: #ef4444;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .bomb-instr {
+      font-size: 15px;
+      color: #e2e8f0;
+      margin-bottom: 12px;
+    }
+    .bomb-code {
+      display: inline-block;
+      background: #ef4444;
+      color: #000;
+      font-weight: 900;
+      padding: 2px 8px;
+    }
+
+    /* Minigame: Wheel of Fortune */
+    #wheel-modal {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(9, 10, 15, 0.94);
+      border: 3px solid #a855f7;
+      padding: 28px;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      z-index: 940;
+      box-shadow: 0 25px 70px rgba(0,0,0,0.9);
+    }
+    #wheel-title {
+      font-size: 22px;
+      font-weight: 900;
+      color: #4ade80;
+      margin-bottom: 14px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+    }
+  </style>
+</head>
+<body>
+  <div id="stage">
+    <!-- Layer 1: Visual Filter Overlays -->
+    <div id="fx-flashbang"></div>
+    <div id="fx-blackout"></div>
+    <div id="fx-tunnel"></div>
+    <div id="fx-rave"></div>
+    <div id="fx-censored">TOP SECRET // CENSORED</div>
+    <div id="fx-bsod">
+      <div class="sad">:(</div>
+      <div class="msg">
+        Auf dem Gaming-PC ist ein Gremlin-Problem aufgetreten. Der Stream muss kurz getrollt werden.<br><br>
+        69% abgeschlossen
+      </div>
+      <div class="code">Stillstandcode: STREAM_GREMLIN_OVERLOAD_EXCEPTION</div>
+    </div>
+
+    <!-- Layer 2: Physics Canvas (Bouncing Emotes, Confetti & Matrix Rain) -->
+    <canvas id="physics-canvas" width="1920" height="1080"></canvas>
+
+    <!-- Layer 3: Troll-HUD Countdown Cards -->
+    <div id="troll-hud-container"></div>
+
+    <!-- Alert / TTS Banner -->
+    <div id="alert-banner">
+      <img src="/assets/icon.png" alt="Gremlin" onerror="this.style.display='none'" />
+      <div>
+        <div class="alert-title" id="alert-user">STREAMGREMLIN</div>
+        <div class="alert-text" id="alert-msg">Bereit!</div>
+      </div>
+    </div>
+
+    <!-- Jumpscare Box -->
+    <div id="jumpscare-box">
+      <img id="jumpscare-img" src="/assets/icon.png" alt="Jumpscare" />
+    </div>
+
+    <!-- Minigame: Timebomb -->
+    <div id="timebomb-widget">
+      <div class="bomb-title">
+        <span>💣 CHAT-ZEITBOMBE!</span>
+        <span id="bomb-timer">20s</span>
+      </div>
+      <div class="bomb-instr">
+        Schreibt <span class="bomb-code" id="bomb-word">cut</span> in den Chat zum Entschärfen!
+      </div>
+      <div class="troll-hud-bar-bg">
+        <div class="troll-hud-bar-fill" id="bomb-bar" style="width: 0%;"></div>
+      </div>
+      <div style="margin-top:6px; font-size:13px; text-align:right;" id="bomb-count">0 / 8</div>
+    </div>
+
+    <!-- Minigame: Wheel of Fortune -->
+    <div id="wheel-modal">
+      <div id="wheel-title">🎡 GREMLIN GLÜCKSRAD</div>
+      <canvas id="wheel-canvas" width="460" height="460"></canvas>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // 1. Ordered Audio & TTS Queue Engine (Sounds play sequentially, no overlap)
+    // =========================================================================
+    const audioQueue = [];
+    let isPlayingAudio = false;
+    let currentAudioObj = null;
+
+    function enqueueAudio(item) {
+      audioQueue.push(item);
+      processAudioQueue();
+    }
+
+    async function processAudioQueue() {
+      if (isPlayingAudio || audioQueue.length === 0) return;
+      isPlayingAudio = true;
+      const item = audioQueue.shift();
+
+      try {
+        if (item.kind === 'sound') {
+          await playSoundUrl(item.sound_url, item.volume ?? 0.85);
+        } else if (item.kind === 'tts') {
+          showBanner(`🗣️ TTS von @${item.user}`, item.text, 4500);
+          if (item.audio_url && !item.fallback_browser) {
+            await playSoundUrl(item.audio_url, item.volume ?? 0.9);
+          } else if ('speechSynthesis' in window) {
+            await playBrowserSpeech(item.text, item.volume ?? 0.9);
+          }
+        }
+      } catch (e) {
+        console.warn('Audio playback warning:', e);
+      } finally {
+        currentAudioObj = null;
+        isPlayingAudio = false;
+        processAudioQueue();
+      }
+    }
+
+    function playSoundUrl(url, volume) {
+      return new Promise((resolve) => {
+        const audio = new Audio(url);
+        currentAudioObj = audio;
+        audio.volume = Math.max(0, Math.min(1, volume));
+        audio.onended = () => resolve();
+        audio.onerror = () => resolve();
+        audio.play().catch(() => resolve());
+      });
+    }
+
+    function playBrowserSpeech(text, volume) {
+      return new Promise((resolve) => {
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = 'de-DE';
+        utter.volume = Math.max(0, Math.min(1, volume));
+        utter.onend = () => resolve();
+        utter.onerror = () => resolve();
+        window.speechSynthesis.speak(utter);
+      });
+    }
+
+    function stopAllAudio() {
+      audioQueue.length = 0;
+      if (currentAudioObj) {
+        currentAudioObj.pause();
+        currentAudioObj = null;
+      }
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      isPlayingAudio = false;
+    }
+
+    // =========================================================================
+    // 2. 2D Physics Engine (Bouncing Emotes, Confetti & Matrix Rain)
+    // =========================================================================
+    const canvas = document.getElementById('physics-canvas');
+    const ctx = canvas.getContext('2d');
+    const MAX_EMOTES = 50;
+    const bodies = [];
+    const confettiParticles = [];
+    let matrixActiveUntil = 0;
+    const matrixDrops = Array.from({ length: 60 }, () => Math.random() * -50);
+
+    // Default fallback emote textures (drawn cleanly if no external CDN image passed)
+    const EMOTE_EMOJIS = ['👹', '🔥', '💀', '😂', '🎉', '⚡', '💣', '🎮', '👀', '🚀'];
+    const imageCache = {};
+
+    function getEmoteImage(url) {
+      if (!url) return null;
+      if (!imageCache[url]) {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.src = url;
+        imageCache[url] = img;
+      }
+      return imageCache[url];
+    }
+
+    function spawnEmotes(payload) {
+      const count = payload.is_hype ? Math.min(45, payload.count || 25) : (payload.count || 1);
+      for (let i = 0; i < count; i++) {
+        if (bodies.length >= MAX_EMOTES) {
+          bodies.shift(); // Remove oldest to protect OBS performance
+        }
+        const radius = 32 + Math.random() * 14;
+        bodies.push({
+          x: 160 + Math.random() * (1920 - 320),
+          y: -40 - Math.random() * 260,
+          vx: (Math.random() - 0.5) * 14,
+          vy: Math.random() * 4,
+          r: radius,
+          angle: Math.random() * Math.PI * 2,
+          va: (Math.random() - 0.5) * 0.12,
+          restitution: 0.72 + Math.random() * 0.14,
+          born: performance.now(),
+          url: payload.url || '',
+          emoji: EMOTE_EMOJIS[Math.floor(Math.random() * EMOTE_EMOJIS.length)],
+        });
+      }
+    }
+
+    function spawnConfetti(durationMs = 3500) {
+      const colors = ['#22c55e', '#a855f7', '#eab308', '#ec4899', '#3b82f6', '#ef4444'];
+      for (let i = 0; i < 120; i++) {
+        confettiParticles.push({
+          x: 960 + (Math.random() - 0.5) * 400,
+          y: 1060,
+          vx: (Math.random() - 0.5) * 26,
+          vy: -18 - Math.random() * 22,
+          size: 8 + Math.random() * 8,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          angle: Math.random() * 6.28,
+          va: (Math.random() - 0.5) * 0.25,
+          born: performance.now(),
+          life: durationMs,
+        });
+      }
+    }
+
+    function updatePhysics(now) {
+      ctx.clearRect(0, 0, 1920, 1080);
+
+      // A. Matrix Digital Rain
+      if (now < matrixActiveUntil) {
+        ctx.fillStyle = 'rgba(0, 255, 90, 0.85)';
+        ctx.font = 'bold 24px monospace';
+        for (let i = 0; i < matrixDrops.length; i++) {
+          const ch = String.fromCharCode(0x30A0 + Math.floor(Math.random() * 96));
+          ctx.fillText(ch, i * 32, matrixDrops[i] * 26);
+          if (matrixDrops[i] * 26 > 1080 && Math.random() > 0.95) {
+            matrixDrops[i] = 0;
+          }
+          matrixDrops[i] += 0.65;
+        }
+      }
+
+      // B. Rigid-Body Bouncing Emotes (Gravity + Wall/Floor +Emote-to-Emote Collisions + 15s Fadeout)
+      const gravity = 0.48;
+      for (let i = bodies.length - 1; i >= 0; i--) {
+        const b = bodies[i];
+        const ageSec = (now - b.born) / 1000;
+        if (ageSec > 15.0) {
+          bodies.splice(i, 1);
+          continue;
+        }
+
+        b.vy += gravity;
+        b.x += b.vx;
+        b.y += b.vy;
+        b.angle += b.va;
+
+        // Floor bounce & stacking friction
+        if (b.y + b.r > 1068) {
+          b.y = 1068 - b.r;
+          b.vy = -b.vy * b.restitution;
+          b.vx *= 0.92;
+          b.va *= 0.88;
+          if (Math.abs(b.vy) < 1.1) b.vy = 0;
+        }
+        // Left / Right wall bounce
+        if (b.x - b.r < 12) {
+          b.x = 12 + b.r;
+          b.vx = -b.vx * b.restitution;
+        } else if (b.x + b.r > 1908) {
+          b.x = 1908 - b.r;
+          b.vx = -b.vx * b.restitution;
+        }
+
+        // Elastic Emote-to-Emote collisions (enables stacking at bottom!)
+        for (let j = i - 1; j >= 0; j--) {
+          const o = bodies[j];
+          const dx = o.x - b.x;
+          const dy = o.y - b.y;
+          const dist = Math.hypot(dx, dy);
+          const minDist = b.r + o.r;
+          if (dist > 0 && dist < minDist) {
+            const nx = dx / dist;
+            const ny = dy / dist;
+            const overlap = (minDist - dist) * 0.5;
+            b.x -= nx * overlap;
+            b.y -= ny * overlap;
+            o.x += nx * overlap;
+            o.y += ny * overlap;
+            const kx = b.vx - o.vx;
+            const ky = b.vy - o.vy;
+            const p = 2 * (nx * kx + ny * ky) / 2;
+            b.vx -= p * nx * 0.75;
+            b.vy -= p * ny * 0.75;
+            o.vx += p * nx * 0.75;
+            o.vy += p * ny * 0.75;
+          }
+        }
+
+        // Smooth fadeout between 12s and 15s
+        const alpha = ageSec > 12.0 ? Math.max(0, 1 - (ageSec - 12.0) / 3.0) : 1.0;
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.translate(b.x, b.y);
+        ctx.rotate(b.angle);
+
+        const img = getEmoteImage(b.url);
+        if (img && img.complete && img.naturalWidth > 0) {
+          ctx.drawImage(img, -b.r, -b.r, b.r * 2, b.r * 2);
+        } else {
+          ctx.font = `${Math.round(b.r * 1.5)}px "Segoe UI Emoji", sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(b.emoji, 0, 0);
+        }
+        ctx.restore();
+      }
+
+      // C. Confetti Particles
+      for (let i = confettiParticles.length - 1; i >= 0; i--) {
+        const p = confettiParticles[i];
+        const age = now - p.born;
+        if (age > p.life) {
+          confettiParticles.splice(i, 1);
+          continue;
+        }
+        p.vy += 0.42;
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vx *= 0.99;
+        p.angle += p.va;
+
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.angle);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+        ctx.restore();
+      }
+
+      requestAnimationFrame(updatePhysics);
+    }
+    requestAnimationFrame(updatePhysics);
+
+    // =========================================================================
+    // 3. Visual Effects & Filter Controller
+    // =========================================================================
+    const stage = document.getElementById('stage');
+    const activeTimers = [];
+
+    function registerTimeout(fn, ms) {
+      const id = setTimeout(fn, ms);
+      activeTimers.push(id);
+      return id;
+    }
+
+    function triggerVisualEffect(payload) {
+      const eff = payload.effect;
+      const dur = payload.duration_ms || 4000;
+
+      if (eff === 'flashbang') {
+        const el = document.getElementById('fx-flashbang');
+        el.style.transition = 'none';
+        el.style.opacity = '1';
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            el.style.transition = `opacity ${dur}ms ease-out`;
+            el.style.opacity = '0';
+          });
+        });
+      } else if (eff === 'blackout') {
+        const el = document.getElementById('fx-blackout');
+        el.style.opacity = '1';
+        registerTimeout(() => { el.style.opacity = '0'; }, dur);
+      } else if (eff === 'tunnel_vision') {
+        const el = document.getElementById('fx-tunnel');
+        el.style.opacity = '1';
+        registerTimeout(() => { el.style.opacity = '0'; }, dur);
+      } else if (eff === 'rave_mode') {
+        const el = document.getElementById('fx-rave');
+        el.classList.add('rave-active');
+        spawnConfetti(dur);
+        registerTimeout(() => { el.classList.remove('rave-active'); }, dur);
+      } else if (eff === 'screen_shake') {
+        stage.classList.add('shake-active');
+        registerTimeout(() => { stage.classList.remove('shake-active'); }, dur);
+      } else if (eff === 'screen_tilt') {
+        const deg = payload.angle || 18;
+        stage.style.transform = `rotate(${deg}deg) scale(0.92)`;
+        registerTimeout(() => { stage.style.transform = 'none'; }, dur);
+      } else if (eff === 'drunk_mode') {
+        stage.classList.add('drunk-active');
+        registerTimeout(() => { stage.classList.remove('drunk-active'); }, dur);
+      } else if (eff === 'screen_glitch') {
+        stage.classList.add('glitch-active');
+        registerTimeout(() => { stage.classList.remove('glitch-active'); }, dur);
+      } else if (eff === 'invert_colors') {
+        stage.classList.add('invert-active');
+        registerTimeout(() => { stage.classList.remove('invert-active'); }, dur);
+      } else if (eff === 'pixelate') {
+        stage.classList.add('pixelate-active');
+        registerTimeout(() => { stage.classList.remove('pixelate-active'); }, dur);
+      } else if (eff === 'mirror_mode') {
+        stage.classList.add('mirror-active');
+        registerTimeout(() => { stage.classList.remove('mirror-active'); }, dur);
+      } else if (eff === 'fake_bsod') {
+        const el = document.getElementById('fx-bsod');
+        el.style.display = 'block';
+        registerTimeout(() => { el.style.display = 'none'; }, dur);
+      } else if (eff === 'censored_bar') {
+        const el = document.getElementById('fx-censored');
+        el.style.display = 'block';
+        registerTimeout(() => { el.style.display = 'none'; }, dur);
+      } else if (eff === 'matrix_rain') {
+        matrixActiveUntil = performance.now() + dur;
+      } else if (eff === 'confetti_burst') {
+        spawnConfetti(dur);
+      } else if (eff === 'fake_alert') {
+        showBanner('🎁 MEGA SUB-BOMBE!', payload.text || 'Elon Musk hat 500 Gift-Subs im Kanal verschenkt!', dur);
+        spawnConfetti(dur);
+      } else if (eff === 'gif_jumpscare') {
+        const box = document.getElementById('jumpscare-box');
+        const img = document.getElementById('jumpscare-img');
+        img.src = payload.image_url || '/assets/icon.png';
+        box.style.display = 'block';
+        requestAnimationFrame(() => {
+          box.style.transform = 'translate(-50%, -50%) scale(1.25)';
+        });
+        registerTimeout(() => {
+          box.style.transform = 'translate(-50%, -50%) scale(0.1)';
+          setTimeout(() => { box.style.display = 'none'; }, 150);
+        }, dur);
+      }
+    }
+
+    function showBanner(title, text, durationMs = 4000) {
+      const banner = document.getElementById('alert-banner');
+      document.getElementById('alert-user').textContent = title;
+      document.getElementById('alert-msg').textContent = text;
+      banner.style.display = 'flex';
+      registerTimeout(() => { banner.style.display = 'none'; }, durationMs);
+    }
+
+    // =========================================================================
+    // 4. Troll-HUD Countdown Cards
+    // =========================================================================
+    const hudContainer = document.getElementById('troll-hud-container');
+
+    function startTrollHud(payload) {
+      const durSec = payload.duration_sec || 10;
+      const card = document.createElement('div');
+      card.className = 'troll-hud-card';
+      card.innerHTML = `
+        <div class="troll-hud-header">
+          <span>😈 ${payload.title || 'Troll aktiv'}</span>
+          <span class="hud-sec">${durSec}s</span>
+        </div>
+        <div class="troll-hud-user">Ausgelöst durch @${payload.user || 'Chat'}</div>
+        <div class="troll-hud-bar-bg">
+          <div class="troll-hud-bar-fill"></div>
+        </div>
+      `;
+      hudContainer.appendChild(card);
+
+      const secEl = card.querySelector('.hud-sec');
+      const barEl = card.querySelector('.troll-hud-bar-fill');
+      const startTime = performance.now();
+      const totalMs = durSec * 1000;
+
+      function tick(now) {
+        const elapsed = now - startTime;
+        const rem = Math.max(0, totalMs - elapsed);
+        secEl.textContent = `${Math.ceil(rem / 1000)}s`;
+        barEl.style.width = `${(rem / totalMs) * 100}%`;
+        if (rem > 0 && card.isConnected) {
+          requestAnimationFrame(tick);
+        } else if (card.isConnected) {
+          card.remove();
+        }
+      }
+      requestAnimationFrame(tick);
+    }
+
+    // =========================================================================
+    // 5. Minigames (Wheel of Fortune & Timebomb)
+    // =========================================================================
+    let bombInterval = null;
+
+    function handleMinigame(payload) {
+      if (payload.game === 'wheel_of_fortune') {
+        runWheelOfFortune(payload);
+      } else if (payload.game === 'timebomb') {
+        const widget = document.getElementById('timebomb-widget');
+        if (payload.action === 'start') {
+          widget.style.display = 'block';
+          document.getElementById('bomb-word').textContent = payload.defuse_word;
+          document.getElementById('bomb-count').textContent = `0 / ${payload.required_count}`;
+          document.getElementById('bomb-bar').style.width = '0%';
+          let rem = payload.duration_sec || 20;
+          document.getElementById('bomb-timer').textContent = `${rem}s`;
+          if (bombInterval) clearInterval(bombInterval);
+          bombInterval = setInterval(() => {
+            rem = Math.max(0, rem - 1);
+            document.getElementById('bomb-timer').textContent = `${rem}s`;
+            if (rem <= 0) clearInterval(bombInterval);
+          }, 1000);
+        } else if (payload.action === 'progress') {
+          const pct = Math.min(100, (payload.current_count / payload.required_count) * 100);
+          document.getElementById('bomb-bar').style.width = `${pct}%`;
+          document.getElementById('bomb-count').textContent = `${payload.current_count} / ${payload.required_count}`;
+        } else if (payload.action === 'defused') {
+          if (bombInterval) clearInterval(bombInterval);
+          widget.style.display = 'none';
+          showBanner('🛡️ BOMBE ENTSCHÄRFT!', `Der Chat hat die Zeitbombe rechtzeitig entschärft!`, 4000);
+        } else if (payload.action === 'explode') {
+          if (bombInterval) clearInterval(bombInterval);
+          widget.style.display = 'none';
+        }
+      }
+    }
+
+    function runWheelOfFortune(payload) {
+      const modal = document.getElementById('wheel-modal');
+      const wCanvas = document.getElementById('wheel-canvas');
+      const wCtx = wCanvas.getContext('2d');
+      const outcomes = payload.outcomes || [];
+      if (!outcomes.length) return;
+
+      modal.style.display = 'flex';
+      const sliceAngle = (Math.PI * 2) / outcomes.length;
+      const winIdx = payload.winner_index || 0;
+      const targetRotation = (Math.PI * 2 * 6) - (winIdx * sliceAngle) - sliceAngle / 2;
+      const start = performance.now();
+      const spinDuration = 4000;
+      const colors = ['#7e22ce', '#15803d', '#b91c1c', '#1d4ed8', '#a16207', '#be185d'];
+
+      function animateWheel(now) {
+        const t = Math.min(1, (now - start) / spinDuration);
+        const ease = 1 - Math.pow(1 - t, 3);
+        const currentAngle = ease * targetRotation;
+
+        wCtx.clearRect(0, 0, 460, 460);
+        wCtx.save();
+        wCtx.translate(230, 230);
+        wCtx.rotate(currentAngle);
+
+        for (let i = 0; i < outcomes.length; i++) {
+          wCtx.beginPath();
+          wCtx.moveTo(0, 0);
+          wCtx.arc(0, 0, 210, i * sliceAngle, (i + 1) * sliceAngle);
+          wCtx.fillStyle = colors[i % colors.length];
+          wCtx.fill();
+          wCtx.strokeStyle = '#090a0f';
+          wCtx.lineWidth = 3;
+          wCtx.stroke();
+
+          wCtx.save();
+          wCtx.rotate(i * sliceAngle + sliceAngle / 2);
+          wCtx.fillStyle = '#ffffff';
+          wCtx.font = 'bold 14px monospace';
+          wCtx.textAlign = 'right';
+          wCtx.fillText(outcomes[i].label.slice(0, 22), 195, 5);
+          wCtx.restore();
+        }
+        wCtx.restore();
+
+        // Pointer triangle on right side (angle 0)
+        wCtx.fillStyle = '#22c55e';
+        wCtx.beginPath();
+        wCtx.moveTo(455, 230);
+        wCtx.lineTo(425, 215);
+        wCtx.lineTo(425, 245);
+        wCtx.closePath();
+        wCtx.fill();
+
+        if (t < 1) {
+          requestAnimationFrame(animateWheel);
+        } else {
+          setTimeout(() => { modal.style.display = 'none'; }, 1600);
+        }
+      }
+      requestAnimationFrame(animateWheel);
+    }
+
+    // =========================================================================
+    // 6. Panic Reset (Immediate Clean State)
+    // =========================================================================
+    function handlePanicReset() {
+      stopAllAudio();
+      while (activeTimers.length) {
+        clearTimeout(activeTimers.pop());
+      }
+      if (bombInterval) clearInterval(bombInterval);
+      bodies.length = 0;
+      confettiParticles.length = 0;
+      matrixActiveUntil = 0;
+      hudContainer.innerHTML = '';
+      stage.className = '';
+      stage.style.transform = 'none';
+      document.getElementById('fx-flashbang').style.opacity = '0';
+      document.getElementById('fx-blackout').style.opacity = '0';
+      document.getElementById('fx-tunnel').style.opacity = '0';
+      document.getElementById('fx-rave').classList.remove('rave-active');
+      document.getElementById('fx-bsod').style.display = 'none';
+      document.getElementById('fx-censored').style.display = 'none';
+      document.getElementById('alert-banner').style.display = 'none';
+      document.getElementById('jumpscare-box').style.display = 'none';
+      document.getElementById('timebomb-widget').style.display = 'none';
+      document.getElementById('wheel-modal').style.display = 'none';
+    }
+
+    // =========================================================================
+    // 7. WebSocket Client with Silent Auto-Reconnect
+    // =========================================================================
+    function connectWebSocket() {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const ws = new WebSocket(`${proto}//${location.host}/ws/overlay`);
+
+      ws.onmessage = (evt) => {
+        try {
+          const msg = JSON.parse(evt.data);
+          const { event, payload } = msg;
+          if (event === 'panic') {
+            handlePanicReset();
+          } else if (event === 'stop_audio') {
+            stopAllAudio();
+          } else if (event === 'sound') {
+            enqueueAudio({ kind: 'sound', ...payload });
+          } else if (event === 'tts') {
+            enqueueAudio({ kind: 'tts', ...payload });
+          } else if (event === 'emote') {
+            spawnEmotes(payload);
+          } else if (event === 'visual') {
+            triggerVisualEffect(payload);
+          } else if (event === 'troll_hud') {
+            startTrollHud(payload);
+          } else if (event === 'minigame') {
+            handleMinigame(payload);
+          }
+        } catch (err) {
+          console.error('Overlay WS parse error:', err);
+        }
+      };
+
+      ws.onclose = () => {
+        setTimeout(connectWebSocket, 2000);
+      };
+      ws.onerror = () => {
+        ws.close();
+      };
+    }
+
+    connectWebSocket();
+  </script>
+</body>
+</html>

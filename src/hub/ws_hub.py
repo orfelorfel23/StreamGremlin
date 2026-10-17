@@ -1,0 +1,582 @@
+"""
+StreamGremlin Real-Time WebSocket Dispatcher & Action Engine
+Verwaltet:
+- OBS Overlay WebSockets (`/ws/overlay`)
+- Windows Companion Agent WebSockets (`/ws/agent`)
+- Dashboard Live-Feed WebSockets (`/ws/dashboard`)
+- Sound-Queue vs. überlagernde Input-Trolls
+- Globaler Cooldown & Per-User Cooldown
+"""
+import asyncio
+from collections import deque
+import logging
+import os
+import random
+import secrets
+import time
+from typing import Any
+from fastapi import WebSocket
+
+from src.hub.config_manager import ConfigManager
+from src.hub.tts_service import TTSService
+from src.hub.automation import AutomationService
+
+logger = logging.getLogger("streamgremlin.ws_hub")
+
+AGENT_VERSION = "1.0.0"
+
+
+class WebSocketHub:
+    def __init__(
+        self,
+        config_manager: ConfigManager,
+        tts_service: TTSService,
+        automation_service: AutomationService,
+    ) -> None:
+        self.cm = config_manager
+        self.tts = tts_service
+        self.automation = automation_service
+
+        self.overlay_clients: set[WebSocket] = set()
+        self.agent_clients: dict[WebSocket, dict[str, Any]] = {}
+        self.dashboard_clients: set[WebSocket] = set()
+
+        self.recent_events: deque[dict[str, Any]] = deque(maxlen=100)
+        self.master_muted: bool = False
+
+        # Cooldown tracking
+        self._last_global_trigger: float = 0.0
+        self._user_last_trigger: dict[str, float] = {}
+        self._trigger_last_used: dict[str, float] = {}
+
+        # Chat message timestamps for chat_velocity spike detection
+        self._chat_timestamps: deque[float] = deque(maxlen=200)
+        self._last_velocity_hype: float = 0.0
+
+        # Active Timebomb state (if running)
+        self.active_timebomb: dict[str, Any] | None = None
+
+    # ------------------------------------------------------------------
+    # Connection Management
+    # ------------------------------------------------------------------
+    async def connect_overlay(self, ws: WebSocket) -> None:
+        await ws.accept()
+        self.overlay_clients.add(ws)
+        await self.broadcast_status()
+
+    def disconnect_overlay(self, ws: WebSocket) -> None:
+        self.overlay_clients.discard(ws)
+
+    async def connect_dashboard(self, ws: WebSocket) -> None:
+        await ws.accept()
+        self.dashboard_clients.add(ws)
+        await ws.send_json({
+            "type": "init",
+            "status": self.get_status_summary(),
+            "recent_events": list(self.recent_events),
+        })
+
+    def disconnect_dashboard(self, ws: WebSocket) -> None:
+        self.dashboard_clients.discard(ws)
+
+    async def connect_agent(self, ws: WebSocket, info: dict[str, Any]) -> None:
+        self.agent_clients[ws] = info
+        await self.broadcast_status()
+        await self.log_event(
+            event_type="system",
+            title="Gaming-PC Agent verbunden",
+            user=info.get("hostname", "Windows-PC"),
+            details=f"Version {info.get('version', '1.0.0')}",
+        )
+
+    def disconnect_agent(self, ws: WebSocket) -> None:
+        self.agent_clients.pop(ws, None)
+
+    def get_status_summary(self, twitch_connected: bool | None = None) -> dict[str, Any]:
+        cfg = self.cm.get_config()
+        env = self.cm.read_env()
+        return {
+            "overlay_count": len(self.overlay_clients),
+            "agent_count": len(self.agent_clients),
+            "agents": [
+                {"hostname": v.get("hostname", "PC"), "version": v.get("version", "1.0.0")}
+                for v in self.agent_clients.values()
+            ],
+            "master_muted": self.master_muted,
+            "twitch_channel": env.get("TWITCH_BROADCASTER_CHANNEL", ""),
+            "twitch_configured": bool(env.get("TWITCH_CLIENT_ID")),
+            "prefix": cfg.get("general", {}).get("prefix", "!"),
+            "agent_version": AGENT_VERSION,
+        }
+
+    # ------------------------------------------------------------------
+    # Broadcasting Helpers
+    # ------------------------------------------------------------------
+    async def broadcast_overlay(self, event: str, payload: dict[str, Any]) -> None:
+        msg = {"event": event, "payload": payload}
+        dead: list[WebSocket] = []
+        for ws in list(self.overlay_clients):
+            try:
+                await ws.send_json(msg)
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            self.overlay_clients.discard(ws)
+
+    async def broadcast_agent(self, payload: dict[str, Any]) -> None:
+        dead: list[WebSocket] = []
+        for ws in list(self.agent_clients.keys()):
+            try:
+                await ws.send_json(payload)
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            self.agent_clients.pop(ws, None)
+
+    async def broadcast_dashboard(self, payload: dict[str, Any]) -> None:
+        dead: list[WebSocket] = []
+        for ws in list(self.dashboard_clients):
+            try:
+                await ws.send_json(payload)
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            self.dashboard_clients.discard(ws)
+
+    async def broadcast_status(self) -> None:
+        await self.broadcast_dashboard({
+            "type": "status",
+            "status": self.get_status_summary(),
+        })
+
+    async def log_event(
+        self,
+        event_type: str,
+        title: str,
+        user: str = "System",
+        details: str = "",
+    ) -> dict[str, Any]:
+        entry = {
+            "id": f"evt_{secrets.token_hex(4)}",
+            "timestamp": int(time.time()),
+            "time_str": time.strftime("%H:%M:%S"),
+            "type": event_type,
+            "title": title,
+            "user": user,
+            "details": details,
+        }
+        self.recent_events.appendleft(entry)
+        await self.broadcast_dashboard({"type": "event", "event": entry})
+        await self.automation.forward_event_to_n8n(event_type, entry)
+        return entry
+
+    # ------------------------------------------------------------------
+    # Panic Switch (Notfall-Aus)
+    # ------------------------------------------------------------------
+    async def trigger_panic(self, source: str = "Dashboard") -> dict[str, Any]:
+        """Stoppt sofort alle aktiven Sounds, TTS, Overlays, Minigames und Tasten-Trolls."""
+        self.active_timebomb = None
+        await self.broadcast_overlay("panic", {"reason": source})
+        await self.broadcast_agent({"action": "panic", "reason": source})
+        entry = await self.log_event(
+            event_type="panic",
+            title="🛑 NOTFALL-PANIK AUSGELÖST",
+            user=source,
+            details="Alle Sounds, Filter und Steuerungs-Hooks sofort gestoppt.",
+        )
+        return {"ok": True, "event": entry}
+
+    # ------------------------------------------------------------------
+    # Cooldown Check
+    # ------------------------------------------------------------------
+    def check_cooldowns(
+        self,
+        trigger: dict[str, Any],
+        user: str,
+        bypass_cooldown: bool = False,
+    ) -> tuple[bool, float]:
+        if bypass_cooldown:
+            return True, 0.0
+
+        now = time.time()
+        cfg = self.cm.get_config()
+        general = cfg.get("general", {})
+        global_cd = float(general.get("global_cooldown_sec", 3))
+        user_cd = float(general.get("user_cooldown_sec", 15))
+        trig_cd = float(trigger.get("cooldown_sec", 5))
+        trig_id = trigger.get("id", "unknown")
+
+        # 1. Global Cooldown
+        if now - self._last_global_trigger < global_cd:
+            return False, round(global_cd - (now - self._last_global_trigger), 1)
+
+        # 2. Per-User Cooldown (gegen Kanalpunkte-Wale)
+        user_key = user.lower()
+        if user_key not in ("broadcaster", "system", "admin", "simulator"):
+            last_u = self._user_last_trigger.get(user_key, 0.0)
+            if now - last_u < user_cd:
+                return False, round(user_cd - (now - last_u), 1)
+
+        # 3. Per-Trigger Cooldown
+        last_t = self._trigger_last_used.get(trig_id, 0.0)
+        if now - last_t < trig_cd:
+            return False, round(trig_cd - (now - last_t), 1)
+
+        self._last_global_trigger = now
+        self._user_last_trigger[user_key] = now
+        self._trigger_last_used[trig_id] = now
+        return True, 0.0
+
+    # ------------------------------------------------------------------
+    # Action Execution Engine
+    # ------------------------------------------------------------------
+    async def execute_trigger(
+        self,
+        trigger: dict[str, Any],
+        user: str = "Viewer",
+        user_input: str = "",
+        bypass_cooldown: bool = False,
+        chat_reply_callback: Any = None,
+    ) -> dict[str, Any]:
+        allowed, remaining = self.check_cooldowns(trigger, user, bypass_cooldown=bypass_cooldown)
+        if not allowed:
+            return {"ok": False, "reason": "cooldown", "remaining_sec": remaining}
+
+        trig_name = trigger.get("name") or trigger.get("title") or trigger.get("id", "Trigger")
+        actions = trigger.get("actions", [])
+        cfg = self.cm.get_config()
+
+        await self.log_event(
+            event_type=trigger.get("type", "trigger"),
+            title=trig_name,
+            user=user,
+            details=user_input[:80] if user_input else f"{len(actions)} Aktion(en)",
+        )
+
+        for action in actions:
+            await self.execute_single_action(
+                action=action,
+                user=user,
+                user_input=user_input,
+                cfg=cfg,
+                chat_reply_callback=chat_reply_callback,
+            )
+
+        return {"ok": True, "trigger": trig_name}
+
+    async def execute_single_action(
+        self,
+        action: dict[str, Any],
+        user: str = "Viewer",
+        user_input: str = "",
+        cfg: dict[str, Any] | None = None,
+        chat_reply_callback: Any = None,
+    ) -> None:
+        if cfg is None:
+            cfg = self.cm.get_config()
+
+        act_type = action.get("type", "")
+        troll_id = f"troll_{secrets.token_hex(4)}"
+
+        # --- 1. AUDIO ACTIONS (Queued in Overlay) ---
+        if act_type == "sound":
+            if self.master_muted:
+                return
+            pool = action.get("pool") or []
+            if isinstance(pool, str):
+                pool = [pool]
+            if not pool:
+                return
+            chosen = random.choice(pool)
+            sound_cfg = cfg.get("sounds", {}).get(chosen, {})
+            vol = float(action.get("volume", sound_cfg.get("volume", 0.85)))
+            payload = {
+                "id": troll_id,
+                "sound_url": f"/sounds/{chosen}",
+                "filename": chosen,
+                "volume": max(0.0, min(1.0, vol)),
+                "user": user,
+            }
+            await self.broadcast_overlay("sound", payload)
+            # Dual-Sound: Falls Agent lokales Audio unterstützt, auch informieren
+            await self.broadcast_agent({"action": "play_sound", **payload})
+
+        elif act_type == "tts":
+            if self.master_muted:
+                return
+            tts_cfg = cfg.get("tts", {})
+            if not tts_cfg.get("enabled", True):
+                return
+            text_to_speak = user_input.strip() or action.get("default_text", f"Hallo von {user}!")
+            voice = action.get("voice") or tts_cfg.get("default_voice", "de-DE-KatjaNeural")
+            vol = float(action.get("volume", tts_cfg.get("volume", 0.90)))
+            max_chars = int(tts_cfg.get("max_characters", 200))
+            engine = tts_cfg.get("engine", "edge-tts")
+
+            res = await self.tts.generate_audio(
+                text=text_to_speak,
+                voice=voice,
+                max_chars=max_chars,
+                engine=engine,
+            )
+            if res.get("ok"):
+                await self.broadcast_overlay(
+                    "tts",
+                    {
+                        "id": troll_id,
+                        "audio_url": res.get("audio_url", ""),
+                        "text": res.get("text", ""),
+                        "user": user,
+                        "voice": voice,
+                        "volume": vol,
+                        "fallback_browser": res.get("fallback_browser", False),
+                    },
+                )
+
+        elif act_type == "stop_audio":
+            await self.broadcast_overlay("stop_audio", {})
+
+        # --- 2. VISUAL OVERLAY ACTIONS ---
+        elif act_type == "bouncing_emotes":
+            await self.broadcast_overlay(
+                "emote",
+                {
+                    "url": action.get("url", ""),
+                    "emote_list": action.get("emote_list", []),
+                    "count": int(action.get("count", 15)),
+                    "is_hype": bool(action.get("is_hype", True)),
+                },
+            )
+
+        elif act_type in (
+            "flashbang",
+            "screen_shake",
+            "screen_tilt",
+            "screen_glitch",
+            "fake_bsod",
+            "blackout",
+            "drunk_mode",
+            "pixelate",
+            "invert_colors",
+            "tunnel_vision",
+            "matrix_rain",
+            "rave_mode",
+            "censored_bar",
+            "mirror_mode",
+            "fake_alert",
+            "confetti_burst",
+            "gif_jumpscare",
+        ):
+            await self.broadcast_overlay(
+                "visual",
+                {
+                    "id": troll_id,
+                    "effect": act_type,
+                    "duration_ms": int(action.get("duration_ms", 4000)),
+                    "angle": int(action.get("angle", 18)),
+                    "text": action.get("text", f"🔥 {user} sorgt für Chaos!"),
+                    "image_url": action.get("image_url", "/assets/icon.png"),
+                    "user": user,
+                },
+            )
+
+        elif act_type == "troll_hud":
+            if cfg.get("general", {}).get("troll_hud_enabled", True):
+                await self.broadcast_overlay(
+                    "troll_hud",
+                    {
+                        "action": "start",
+                        "troll_id": troll_id,
+                        "title": action.get("title", "Troll aktiv"),
+                        "user": user,
+                        "duration_sec": int(action.get("duration_sec", 10)),
+                    },
+                )
+
+        # --- 3. INTERACTIVE MINIGAMES ---
+        elif act_type == "wheel_of_fortune":
+            outcomes = action.get("outcomes") or [
+                {"label": "🔄 Steuerung Invertiert (8s)", "effect": "invert_keys"},
+                {"label": "💣 Flashbang Granate!", "effect": "flashbang"},
+                {"label": "🍺 5 Promille Modus (10s)", "effect": "drunk_mode"},
+                {"label": "🔫 Waffen-Roulette (6s)", "effect": "weapon_roulette"},
+                {"label": "🍀 Glück gehabt! Nichts passiert", "effect": "none"},
+                {"label": "🕺 Rave Party & Konfetti!", "effect": "rave_mode"},
+            ]
+            winner_idx = random.randrange(len(outcomes))
+            winner = outcomes[winner_idx]
+            await self.broadcast_overlay(
+                "minigame",
+                {
+                    "game": "wheel_of_fortune",
+                    "outcomes": outcomes,
+                    "winner_index": winner_idx,
+                    "winner": winner,
+                    "user": user,
+                    "duration_ms": int(action.get("duration_ms", 5500)),
+                },
+            )
+            # Trigger the winning outcome after wheel spin finishes (4.2s)
+            async def _delayed_outcome() -> None:
+                await asyncio.sleep(4.2)
+                eff = winner.get("effect")
+                if eff == "invert_keys":
+                    await self.execute_single_action(
+                        {"type": "invert_keys", "pairs": [["w", "s"], ["a", "d"]], "duration_sec": 8},
+                        user=user,
+                    )
+                    await self.execute_single_action(
+                        {"type": "troll_hud", "title": winner["label"], "duration_sec": 8},
+                        user=user,
+                    )
+                elif eff in ("flashbang", "drunk_mode", "rave_mode"):
+                    await self.execute_single_action(
+                        {"type": eff, "duration_ms": 6000}, user=user
+                    )
+                elif eff == "weapon_roulette":
+                    await self.execute_single_action(
+                        {"type": "weapon_roulette", "duration_sec": 6}, user=user
+                    )
+
+            asyncio.create_task(_delayed_outcome())
+
+        elif act_type == "timebomb":
+            defuse_word = str(action.get("defuse_word", "cut")).lower().strip()
+            req_count = int(action.get("required_count", 8))
+            duration_sec = int(action.get("duration_sec", 20))
+            bomb_id = f"bomb_{secrets.token_hex(4)}"
+            self.active_timebomb = {
+                "id": bomb_id,
+                "defuse_word": defuse_word,
+                "required_count": req_count,
+                "current_count": 0,
+                "expires_at": time.time() + duration_sec,
+            }
+            await self.broadcast_overlay(
+                "minigame",
+                {
+                    "game": "timebomb",
+                    "action": "start",
+                    "bomb_id": bomb_id,
+                    "defuse_word": defuse_word,
+                    "required_count": req_count,
+                    "duration_sec": duration_sec,
+                    "user": user,
+                },
+            )
+
+            async def _bomb_timer() -> None:
+                await asyncio.sleep(duration_sec)
+                if self.active_timebomb and self.active_timebomb.get("id") == bomb_id:
+                    self.active_timebomb = None
+                    await self.broadcast_overlay(
+                        "minigame", {"game": "timebomb", "action": "explode", "bomb_id": bomb_id}
+                    )
+                    await self.execute_single_action({"type": "flashbang", "duration_ms": 3500}, user="Zeitbombe")
+                    await self.execute_single_action({"type": "screen_shake", "duration_ms": 3500}, user="Zeitbombe")
+                    await self.execute_single_action({"type": "sound", "pool": ["flashbang.wav"]}, user="Zeitbombe")
+
+            asyncio.create_task(_bomb_timer())
+
+        # --- 4. GAMING-PC AGENT INPUT TROLLS (Overlapping!) ---
+        elif act_type in (
+            "invert_keys",
+            "jam_key",
+            "disable_key",
+            "weapon_roulette",
+            "reload_addiction",
+            "jump_frenzy",
+            "flashlight_rave",
+            "crouch_spam",
+            "mouse_sensitivity",
+            "mouse_invert",
+        ):
+            agent_payload = {
+                "action": act_type,
+                "troll_id": troll_id,
+                "user": user,
+                "duration_sec": int(action.get("duration_sec", 10)),
+                "pairs": action.get("pairs", [["w", "s"], ["a", "d"]]),
+                "key": action.get("key", "space"),
+                "keys": action.get("keys", ["1", "2", "3"]),
+                "mode": action.get("mode", "hold"),
+                "count": int(action.get("count", 3)),
+                "factor": float(action.get("factor", 0.3)),
+            }
+            await self.broadcast_agent(agent_payload)
+
+        # --- 5. SMART HOME / HOME ASSISTANT ---
+        elif act_type in ("smart_home", "ha_action"):
+            await self.automation.execute_smart_home_action(action, user=user)
+
+        # --- 6. CHAT REPLY ---
+        elif act_type == "chat_reply":
+            if cfg.get("general", {}).get("bot_chat_reply", True) and chat_reply_callback:
+                template = action.get("message", "👹 @{user} hat {title} ausgelöst!")
+                formatted = template.replace("{user}", user)
+                await chat_reply_callback(formatted)
+
+    # ------------------------------------------------------------------
+    # Incoming Chat Message Processor (Emotes, Timebomb, Velocity)
+    # ------------------------------------------------------------------
+    async def register_chat_activity(
+        self,
+        user: str,
+        message: str,
+        emote_urls: list[str],
+    ) -> None:
+        cfg = self.cm.get_config()
+        general = cfg.get("general", {})
+
+        # 1. Active Timebomb Defuse Check
+        if self.active_timebomb:
+            word = self.active_timebomb["defuse_word"]
+            if word in message.lower().split():
+                self.active_timebomb["current_count"] += 1
+                cur = self.active_timebomb["current_count"]
+                req = self.active_timebomb["required_count"]
+                await self.broadcast_overlay(
+                    "minigame",
+                    {
+                        "game": "timebomb",
+                        "action": "progress",
+                        "current_count": cur,
+                        "required_count": req,
+                        "user": user,
+                    },
+                )
+                if cur >= req:
+                    self.active_timebomb = None
+                    await self.broadcast_overlay(
+                        "minigame",
+                        {"game": "timebomb", "action": "defused", "user": user},
+                    )
+                    await self.execute_single_action(
+                        {"type": "confetti_burst", "duration_ms": 3500}, user=user
+                    )
+
+        # 2. Individual Chat Emote Drop
+        if general.get("chat_emotes_auto_bounce", True) and emote_urls:
+            for url in emote_urls[:8]:
+                await self.broadcast_overlay(
+                    "emote",
+                    {"url": url, "count": 1, "is_hype": False},
+                )
+
+        # 3. Chat Velocity Spike Detection
+        now = time.time()
+        self._chat_timestamps.append(now)
+        recent_5s = [t for t in self._chat_timestamps if now - t <= 5.0]
+        threshold = int(general.get("chat_velocity_threshold", 15))
+        if len(recent_5s) >= threshold and (now - self._last_velocity_hype > 20.0):
+            self._last_velocity_hype = now
+            await self.broadcast_overlay(
+                "emote",
+                {"url": "", "count": 35, "is_hype": True},
+            )
+            await self.log_event(
+                event_type="chat_velocity",
+                title="🔥 Chat-Hype-Spike erkannt!",
+                user="Chat-Crowd",
+                details=f"{len(recent_5s)} Nachrichten in 5s",
+            )

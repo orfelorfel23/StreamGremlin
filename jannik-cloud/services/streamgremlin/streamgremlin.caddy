@@ -1,0 +1,3 @@
+streamgremlin.orfel.de, sg.orfel.de, gremlin.orfel.de {
+	reverse_proxy streamgremlin:4736
+}

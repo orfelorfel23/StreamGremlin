@@ -1,0 +1,281 @@
+# ==============================================================================
+# StreamGremlin - Master Configuration File (Hot-Reloading)
+# ==============================================================================
+general:
+  port: 4736
+  prefix: "!"                        # '/' ist systemweit strikt verboten!
+  global_cooldown_sec: 3
+  user_cooldown_sec: 15
+  bot_chat_reply: true               # Antwortet aktiv im Twitch-Chat oder bleibt silent
+  overlay_resolution: "1920x1080"
+  troll_hud_enabled: true            # Zeigt Countdown-Balken im Stream-Overlay
+  chat_velocity_threshold: 15        # Nachrichten in 5s für automatischen Hype-Regen
+  chat_emotes_auto_bounce: true      # Jedes Chat-Emote fällt einzeln durchs Bild
+  n8n_webhook_url: ""                # Optional: Pusht alle Events live an n8n
+  home_assistant:
+    url: "https://home.orfel.de"
+    default_entity: "light.gaming_zimmer"
+
+tts:
+  enabled: true
+  engine: "edge-tts"                 # Microsoft Azure Neural Voices
+  default_voice: "de-DE-KatjaNeural"
+  available_voices:
+    - id: "de-DE-KatjaNeural"
+      label: "Katja (DE - Natürlich Weiblich)"
+    - id: "de-DE-ConradNeural"
+      label: "Conrad (DE - Klar Männlich)"
+    - id: "de-DE-KillianNeural"
+      label: "Killian (DE - Dynamisch Männlich)"
+    - id: "de-DE-AmalaNeural"
+      label: "Amala (DE - Modern Weiblich)"
+    - id: "en-US-ChristopherNeural"
+      label: "Christopher (US - Narrator)"
+    - id: "en-US-JennyNeural"
+      label: "Jenny (US - Conversational)"
+  max_characters: 200
+  volume: 0.90
+
+auth:
+  admin_password_hash: ""
+  streamer_password_hash: ""
+  mod_password_hash: ""
+  permissions:
+    streamer:
+      can_manage_triggers: true
+      can_upload_sounds: true
+      can_edit_cooldowns: true
+      can_configure_twitch: true
+      can_manage_mod_permissions: true
+    mod:
+      can_trigger_panic: true
+      can_use_live_deck: true
+      can_trigger_tests: true
+      can_mute_audio: true
+
+sounds:
+  bonk.wav:
+    volume: 0.85
+  flashbang.wav:
+    volume: 0.90
+  airhorn.wav:
+    volume: 0.75
+  evil_laugh.wav:
+    volume: 0.85
+  censor_beep.wav:
+    volume: 0.80
+  hype_horn.wav:
+    volume: 0.85
+
+triggers:
+  - id: "cmd_bonk"
+    name: "Bonk Sound-Attacke"
+    enabled: true
+    type: "command"
+    pattern: "bonk"
+    match_mode: "word"
+    allowed_roles: ["everyone"]
+    cooldown_sec: 5
+    actions:
+      - type: "sound"
+        pool: ["bonk.wav"]
+        volume: 0.85
+      - type: "bouncing_emotes"
+        count: 5
+        is_hype: false
+
+  - id: "word_gg"
+    name: "GG Konfetti & Emote-Drop"
+    enabled: true
+    type: "chat_word"
+    pattern: "gg"
+    match_mode: "word"
+    allowed_roles: ["everyone"]
+    cooldown_sec: 10
+    actions:
+      - type: "confetti_burst"
+        duration_ms: 3000
+      - type: "bouncing_emotes"
+        count: 15
+        is_hype: true
+
+  - id: "cmd_tts"
+    name: "Neural Text-to-Speech"
+    enabled: true
+    type: "command"
+    pattern: "tts"
+    match_mode: "word"
+    allowed_roles: ["subscriber", "mod", "broadcaster"]
+    cooldown_sec: 15
+    actions:
+      - type: "tts"
+        voice: "de-DE-KatjaNeural"
+        volume: 0.90
+
+  - id: "cp_invert_wasd"
+    name: "Steuerung Invertieren (W/S & A/D)"
+    enabled: true
+    type: "channel_point"
+    title: "Steuerung Invertieren (10s)"
+    cost: 2500
+    allowed_roles: ["everyone"]
+    cooldown_sec: 30
+    actions:
+      - type: "invert_keys"
+        pairs: [["w", "s"], ["a", "d"]]
+        duration_sec: 10
+      - type: "troll_hud"
+        title: "Steuerung invertiert (W↔S / A↔D)"
+        duration_sec: 10
+      - type: "sound"
+        pool: ["evil_laugh.wav"]
+        volume: 0.85
+      - type: "chat_reply"
+        message: "👹 @{user} hat die Steuerung für 10 Sekunden komplett umgedreht!"
+
+  - id: "cp_flashbang"
+    name: "CS2 Flashbang Granate"
+    enabled: true
+    type: "channel_point"
+    title: "Flashbang werfen!"
+    cost: 1500
+    allowed_roles: ["everyone"]
+    cooldown_sec: 20
+    actions:
+      - type: "flashbang"
+        duration_ms: 3000
+      - type: "sound"
+        pool: ["flashbang.wav"]
+        volume: 0.90
+
+  - id: "cp_drunk_tilt"
+    name: "Betrunken & Schräglage"
+    enabled: true
+    type: "channel_point"
+    title: "5 Promille Modus (12s)"
+    cost: 2000
+    allowed_roles: ["everyone"]
+    cooldown_sec: 25
+    actions:
+      - type: "drunk_mode"
+        duration_ms: 12000
+      - type: "screen_tilt"
+        angle: 18
+        duration_ms: 12000
+      - type: "troll_hud"
+        title: "5 Promille Betrunken-Modus"
+        duration_sec: 12
+
+  - id: "cp_weapon_roulette"
+    name: "Shooter Waffen-Roulette & Nachlade-Zwang"
+    enabled: true
+    type: "channel_point"
+    title: "Waffen-Chaos (8s)"
+    cost: 3000
+    allowed_roles: ["everyone"]
+    cooldown_sec: 30
+    actions:
+      - type: "weapon_roulette"
+        keys: ["1", "2", "3"]
+        duration_sec: 8
+      - type: "reload_addiction"
+        key: "r"
+        count: 3
+      - type: "troll_hud"
+        title: "Waffen-Roulette aktiv!"
+        duration_sec: 8
+
+  - id: "cp_teabag"
+    name: "Teabag / Känguru-Modus"
+    enabled: true
+    type: "channel_point"
+    title: "Teabag-Zwang (6s)"
+    cost: 1200
+    allowed_roles: ["everyone"]
+    cooldown_sec: 20
+    actions:
+      - type: "crouch_spam"
+        key: "ctrl"
+        duration_sec: 6
+      - type: "troll_hud"
+        title: "Teabag-Modus aktiv"
+        duration_sec: 6
+
+  - id: "cp_red_light"
+    name: "Smart-Home: Alarmstufe Rot"
+    enabled: true
+    type: "channel_point"
+    title: "Zimmerlicht auf ROT (15s)"
+    cost: 1000
+    allowed_roles: ["everyone"]
+    cooldown_sec: 30
+    actions:
+      - type: "smart_home"
+        entity_id: "light.gaming_zimmer"
+        rgb_color: [255, 0, 0]
+        brightness: 255
+        duration_sec: 15
+      - type: "rave_mode"
+        duration_ms: 5000
+
+  - id: "cp_wheel"
+    name: "Troll-Glücksrad"
+    enabled: true
+    type: "channel_point"
+    title: "Dreh das Gremlin-Glücksrad!"
+    cost: 2000
+    allowed_roles: ["everyone"]
+    cooldown_sec: 30
+    actions:
+      - type: "wheel_of_fortune"
+        duration_ms: 6000
+
+  - id: "cmd_bomb"
+    name: "Chat-Zeitbombe (Entschärfungsspiel)"
+    enabled: true
+    type: "command"
+    pattern: "bombe"
+    match_mode: "word"
+    allowed_roles: ["mod", "broadcaster"]
+    cooldown_sec: 60
+    actions:
+      - type: "timebomb"
+        defuse_word: "cut"
+        required_count: 8
+        duration_sec: 20
+
+  - id: "evt_hype_train"
+    name: "Twitch Hype-Train Eskalation"
+    enabled: true
+    type: "hype_train"
+    pattern: "any"
+    allowed_roles: ["everyone"]
+    cooldown_sec: 5
+    actions:
+      - type: "sound"
+        pool: ["hype_horn.wav"]
+        volume: 0.90
+      - type: "bouncing_emotes"
+        count: 45
+        is_hype: true
+      - type: "confetti_burst"
+        duration_ms: 5000
+      - type: "rave_mode"
+        duration_ms: 6000
+
+  - id: "evt_raid"
+    name: "Raid Matrix-Empfang"
+    enabled: true
+    type: "raid"
+    min_viewers: 3
+    allowed_roles: ["everyone"]
+    cooldown_sec: 5
+    actions:
+      - type: "matrix_rain"
+        duration_ms: 10000
+      - type: "bouncing_emotes"
+        count: 40
+        is_hype: true
+      - type: "sound"
+        pool: ["airhorn.wav"]
+        volume: 0.85
