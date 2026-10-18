@@ -32,9 +32,9 @@ tts:
   max_characters: 200
   volume: 0.9
 auth:
-  admin_password_hash: $2b$12$usDJq9whte7Gordtd4zovuiYb0W6uSC.d2onp2FDGGnvdkqyBfe6m
-  streamer_password_hash: $2b$12$BG4bRl3ukYIBlhysULLMousxakhs0y53b6N/.eJWi9gsbqEOuMnyi
-  mod_password_hash: $2b$12$TUbCUC6O7VotE7KR5en2/.J81Q3wxoyi2OzXYe.StSpJvDLRFc/zS
+  admin_password_hash: ''
+  streamer_password_hash: ''
+  mod_password_hash: ''
   permissions:
     streamer:
       can_manage_triggers: true

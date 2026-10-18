@@ -1,5 +1,7 @@
-# Secrets (Plaintext .env darf nie ins Git - nur .env.age!)
+# Secrets (Plaintext .env darf nie ins Git - nur .env*.age!)
 .env
+.env.*
+!.env*.age
 *.key
 keys/age-key.txt
 

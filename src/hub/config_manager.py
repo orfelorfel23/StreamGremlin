@@ -26,8 +26,14 @@ class ConfigManager:
             or (self.repo_root / "config" / "config.yaml")
         )
         self.example_path = self.repo_root / "config" / "config.example.yaml"
-        self.env_path = self.repo_root / ".env"
-        self.env_age_path = self.repo_root / ".env.age"
+        self.env_path = Path(
+            os.environ.get("ENV_PATH")
+            or (self.repo_root / ".env")
+        )
+        self.env_age_path = Path(
+            os.environ.get("ENV_AGE_PATH")
+            or (self.repo_root / ".env.age")
+        )
         self.age_pub_key_path = Path(
             os.environ.get("AGE_PUBLIC_KEY_FILE")
             or (self.repo_root / "keys" / "age-public-key.txt")

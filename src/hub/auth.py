@@ -118,39 +118,51 @@ class AuthManager:
         if len(new_password) < 4:
             raise ValueError("Das neue Passwort muss mindestens 4 Zeichen lang sein.")
 
+        env = self.cm.read_env()
+        admin_env = env.get("ADMIN_PASSWORD")
+        streamer_env = env.get("STREAMER_PASSWORD")
+
         cfg = self.cm.get_config(force_reload=True)
         auth_cfg = cfg.setdefault("auth", {})
 
         if caller_role == "admin":
             if target_role == "admin":
-                if not current_password or not verify_password(
+                valid_current = False
+                if admin_env and current_password == admin_env:
+                    valid_current = True
+                elif current_password and verify_password(
                     current_password, auth_cfg.get("admin_password_hash", "")
                 ):
+                    valid_current = True
+                if not valid_current:
                     raise PermissionError("Aktuelles Admin-Passwort ist falsch.")
-                auth_cfg["admin_password_hash"] = hash_password(new_password)
+                self.cm.write_env({"ADMIN_PASSWORD": new_password}, encrypt_age=True)
             elif target_role == "streamer":
-                auth_cfg["streamer_password_hash"] = hash_password(new_password)
+                self.cm.write_env({"STREAMER_PASSWORD": new_password}, encrypt_age=True)
             elif target_role == "mod":
-                auth_cfg["mod_password_hash"] = hash_password(new_password)
+                self.cm.write_env({"MOD_PASSWORD": new_password}, encrypt_age=True)
             else:
                 raise ValueError(f"Unbekannte Ziel-Rolle: {target_role}")
 
         elif caller_role == "streamer":
             if target_role == "streamer":
-                if not current_password or not verify_password(
+                valid_current = False
+                if streamer_env and current_password == streamer_env:
+                    valid_current = True
+                elif current_password and verify_password(
                     current_password, auth_cfg.get("streamer_password_hash", "")
                 ):
+                    valid_current = True
+                if not valid_current:
                     raise PermissionError("Aktuelles Streamer-Passwort ist falsch.")
-                auth_cfg["streamer_password_hash"] = hash_password(new_password)
+                self.cm.write_env({"STREAMER_PASSWORD": new_password}, encrypt_age=True)
             elif target_role == "mod":
-                auth_cfg["mod_password_hash"] = hash_password(new_password)
+                self.cm.write_env({"MOD_PASSWORD": new_password}, encrypt_age=True)
             else:
                 raise PermissionError("Keine Berechtigung zur Passwortänderung.")
 
         else:
             raise PermissionError("Keine Berechtigung zur Passwortänderung.")
-
-        self.cm.save_config(cfg)
 
     def reset_admin_password_cli(self, new_password: str | None = None) -> str:
         """Notfall-Reset über die Server-Konsole (CLI)."""
