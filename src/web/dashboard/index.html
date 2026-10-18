@@ -528,9 +528,8 @@
         <span>OBS: <strong id="txt-overlay">0</strong></span>
       </div>
       <button class="btn" id="btn-mute" onclick="toggleMute()">Audio: An</button>
-      <span class="role-badge" id="badge-role">Gast</span>
       <button class="btn-panic" onclick="triggerPanic()">Panik (Stop)</button>
-      <button class="btn" onclick="logout()">Abmelden</button>
+      <button class="btn" onclick="logout()" title="Sperren">Sperren</button>
     </div>
   </header>
 
@@ -932,92 +931,27 @@
           </div>
         </div>
 
-        <!-- Passwords & Permissions -->
-        <div class="grid-equal">
-          <div class="panel">
-            <div class="panel-head">
-              <span>Passwort ändern</span>
-            </div>
-            <div class="panel-body">
-              <div class="form-row">
-                <label class="form-label">Ziel-Rolle</label>
-                <select id="pw-target-role">
-                  <option value="streamer">Streamer</option>
-                  <option value="mod">Moderator</option>
-                  <option value="admin" id="opt-pw-admin">Admin</option>
-                </select>
-              </div>
-              <div class="form-row">
-                <label class="form-label">Aktuelles eigenes Passwort</label>
-                <input type="password" id="pw-current" placeholder="Aktuelles Passwort (falls nötig)..." />
-              </div>
-              <div class="form-row">
-                <label class="form-label">Neues Passwort</label>
-                <input type="password" id="pw-new" placeholder="Mindestens 4 Zeichen..." />
-              </div>
-              <button class="btn btn-primary" onclick="changePassword()">Passwort aktualisieren</button>
-            </div>
-          </div>
-
-          <div class="panel" id="panel-role-perms">
-            <div class="panel-head">
-              <span>Rollen-Berechtigungen</span>
-            </div>
-            <div class="panel-body">
-              <div id="admin-Only-perms" style="margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid var(--border);">
-                <div class="form-label">Berechtigungen für Streamer (nur Admin):</div>
-                <label class="mono" style="display:block; margin-bottom:4px;"><input type="checkbox" id="perm-str-triggers" checked /> Darf Trigger bearbeiten</label>
-                <label class="mono" style="display:block;"><input type="checkbox" id="perm-str-sounds" checked /> Darf Sounds hochladen</label>
-              </div>
-              <div>
-                <div class="form-label">Berechtigungen für Moderatoren:</div>
-                <label class="mono" style="display:block; margin-bottom:4px;"><input type="checkbox" id="perm-mod-tests" checked /> Darf Test-Aktionen im Deck auslösen</label>
-                <label class="mono" style="display:block;"><input type="checkbox" id="perm-mod-mute" checked /> Darf Master-Audio stummschalten</label>
-              </div>
-              <button class="btn btn-primary" style="margin-top:12px;" onclick="saveRolePermissions()">Berechtigungen speichern</button>
-            </div>
-          </div>
-        </div>
       </section>
 
     </main>
   </div>
 
-  <!-- Modal: Login & Initial Setup -->
+  <!-- Modal: Unlock -->
   <div class="modal-backdrop" id="auth-modal">
-    <div class="modal-box">
+    <div class="modal-box" style="max-width:380px;">
       <div class="panel-head">
-        <span id="auth-modal-title">Anmeldung</span>
+        <span id="auth-modal-title">StreamGremlin</span>
       </div>
       <div class="panel-body">
         <div id="login-view">
           <p style="color:var(--text-muted); margin-bottom:14px; font-size:12px;">
-            Gib dein Passwort ein. Das System weist dir automatisch deine Rolle (Admin, Streamer oder Moderator) zu.
+            Bitte Passwort eingeben zum Entsperren.
           </p>
           <div class="form-row">
             <label class="form-label">Passwort</label>
             <input type="password" id="login-password" placeholder="Passwort eingeben..." onkeydown="if(event.key==='Enter') doLogin()" />
           </div>
-          <button class="btn btn-primary" style="width:100%;" onclick="doLogin()">Anmelden</button>
-        </div>
-
-        <div id="setup-view" style="display:none;">
-          <p style="color:var(--accent-lime); font-size:12px; margin-bottom:12px;">
-            Ersteinrichtung: Bitte lege die Passwörter für das System fest.
-          </p>
-          <div class="form-row">
-            <label class="form-label">Admin-Passwort (Vollzugriff)</label>
-            <input type="password" id="setup-admin-pw" placeholder="Admin-Passwort (mind. 4 Zeichen)" />
-          </div>
-          <div class="form-row">
-            <label class="form-label">Streamer-Passwort (Optional)</label>
-            <input type="password" id="setup-streamer-pw" placeholder="Streamer-Passwort" />
-          </div>
-          <div class="form-row">
-            <label class="form-label">Moderator-Passwort (Optional)</label>
-            <input type="password" id="setup-mod-pw" placeholder="Mod-Passwort" />
-          </div>
-          <button class="btn btn-primary" style="width:100%;" onclick="doInitialSetup()">Passwörter speichern</button>
+          <button class="btn btn-primary" style="width:100%;" onclick="doLogin()">Entsperren</button>
         </div>
       </div>
     </div>
@@ -1195,19 +1129,11 @@
 
       if (!data.authenticated) {
         document.getElementById('auth-modal').style.display = 'flex';
-        if (data.setup_required) {
-          document.getElementById('login-view').style.display = 'none';
-          document.getElementById('setup-view').style.display = 'block';
-        } else {
-          document.getElementById('login-view').style.display = 'block';
-          document.getElementById('setup-view').style.display = 'none';
-        }
         return;
       }
 
       document.getElementById('auth-modal').style.display = 'none';
       currentRole = data.role;
-      document.getElementById('badge-role').textContent = `Rolle: ${currentRole.charAt(0).toUpperCase() + currentRole.slice(1)}`;
       applyRoleRestrictions(currentRole);
       await loadFullConfig();
       await loadSoundsTable();
@@ -1226,32 +1152,10 @@
         document.getElementById('nav-twitch').style.display = 'block';
         document.getElementById('nav-settings').style.display = 'block';
       }
-      if (role !== 'admin') {
-        document.getElementById('opt-pw-admin').style.display = 'none';
-        document.getElementById('admin-Only-perms').style.display = 'none';
-        document.getElementById('panel-automation').style.display = 'none';
+      const autoPanel = document.getElementById('panel-automation');
+      if (autoPanel) {
+        autoPanel.style.display = (role === 'admin') ? 'block' : 'none';
       }
-    }
-
-    async function doInitialSetup() {
-      const admin_password = document.getElementById('setup-admin-pw').value;
-      const streamer_password = document.getElementById('setup-streamer-pw').value;
-      const mod_password = document.getElementById('setup-mod-pw').value;
-
-      const res = await fetch('/api/auth/setup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ admin_password, streamer_password, mod_password }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        alert(data.detail || 'Fehler beim Setup');
-        return;
-      }
-      alert(
-        `Setup abgeschlossen!\n\nAdmin-Passwort: ${data.generated_credentials.admin_password}\nStreamer-Passwort: ${data.generated_credentials.streamer_password}\nMod-Passwort: ${data.generated_credentials.mod_password}`
-      );
-      checkAuth();
     }
 
     async function doLogin() {
@@ -1382,16 +1286,6 @@
       document.getElementById('sec-webhook-token').value = sec.webhook_token || '';
       document.getElementById('sec-n8n-url').value = sec.n8n_webhook_url || '';
       document.getElementById('sec-ha-url').value = sec.ha_base_url || 'https://home.orfel.de';
-
-      const perms = (appConfig.auth || {}).permissions || {};
-      if (perms.streamer) {
-        document.getElementById('perm-str-triggers').checked = perms.streamer.can_manage_triggers !== false;
-        document.getElementById('perm-str-sounds').checked = perms.streamer.can_upload_sounds !== false;
-      }
-      if (perms.mod) {
-        document.getElementById('perm-mod-tests').checked = perms.mod.can_trigger_tests !== false;
-        document.getElementById('perm-mod-mute').checked = perms.mod.can_mute_audio !== false;
-      }
     }
 
     // =========================================================================
@@ -1457,48 +1351,6 @@
       });
       if (res.ok) {
         showToast('Automation-Daten gespeichert');
-      }
-    }
-
-    async function saveRolePermissions() {
-      appConfig.auth = appConfig.auth || {};
-      appConfig.auth.permissions = {
-        streamer: {
-          can_manage_triggers: document.getElementById('perm-str-triggers').checked,
-          can_upload_sounds: document.getElementById('perm-str-sounds').checked,
-        },
-        mod: {
-          can_trigger_tests: document.getElementById('perm-mod-tests').checked,
-          can_mute_audio: document.getElementById('perm-mod-mute').checked,
-        },
-      };
-      const res = await fetch('/api/config', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(appConfig),
-      });
-      if (res.ok) {
-        showToast('Berechtigungen gespeichert');
-      }
-    }
-
-    async function changePassword() {
-      const target_role = document.getElementById('pw-target-role').value;
-      const current_password = document.getElementById('pw-current').value;
-      const new_password = document.getElementById('pw-new').value;
-
-      const res = await fetch('/api/auth/change-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target_role, current_password, new_password }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        showToast(`Passwort für ${target_role} aktualisiert`);
-        document.getElementById('pw-current').value = '';
-        document.getElementById('pw-new').value = '';
-      } else {
-        alert(data.detail || 'Fehler bei der Passwortänderung');
       }
     }
 

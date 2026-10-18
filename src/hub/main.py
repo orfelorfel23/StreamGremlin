@@ -85,12 +85,10 @@ async def serve_icon() -> Response:
     raise HTTPException(status_code=404, detail="Icon not found")
 
 
-@app.get("/")
-async def root_redirect() -> RedirectResponse:
-    return RedirectResponse(url="/admin")
-
-
+@app.get("/", response_class=HTMLResponse)
 @app.get("/login", response_class=HTMLResponse)
+@app.get("/deck", response_class=HTMLResponse)
+@app.get("/dashboard", response_class=HTMLResponse)
 @app.get("/admin", response_class=HTMLResponse)
 async def serve_dashboard() -> HTMLResponse:
     index_file = WEB_DIR / "dashboard" / "index.html"
@@ -238,7 +236,7 @@ async def update_config(request: Request) -> dict[str, Any]:
     if role == "streamer":
         perms = current.get("auth", {}).get("permissions", {}).get("streamer", {})
         if not perms.get("can_manage_triggers", True) and "triggers" in body:
-            raise HTTPException(status_code=403, detail="Trigger-Bearbeitung durch Admin gesperrt.")
+            raise HTTPException(status_code=403, detail="Trigger-Bearbeitung nicht gestattet.")
         # Streamer can edit mod permissions, but not streamer permissions
         if "auth" in body and "permissions" in body["auth"]:
             body["auth"]["permissions"]["streamer"] = perms
@@ -291,7 +289,7 @@ async def upload_sound(request: Request, file: UploadFile = File(...)) -> dict[s
     role = auth_manager.require_roles(request, ["admin", "streamer"])
     cfg = config_manager.get_config()
     if role == "streamer" and not cfg.get("auth", {}).get("permissions", {}).get("streamer", {}).get("can_upload_sounds", True):
-        raise HTTPException(status_code=403, detail="Sound-Upload durch Admin deaktiviert.")
+        raise HTTPException(status_code=403, detail="Sound-Upload nicht gestattet.")
 
     raw_name = file.filename or "sound.mp3"
     ext = Path(raw_name).suffix.lower()
@@ -308,7 +306,7 @@ async def upload_sound(request: Request, file: UploadFile = File(...)) -> dict[s
     cfg.setdefault("sounds", {}).setdefault(safe_name, {"volume": 0.85})
     config_manager.save_config(cfg)
 
-    await ws_hub.log_event("sound_upload", f"Sound hochgeladen: {safe_name}", user=role.capitalize())
+    await ws_hub.log_event("sound_upload", f"Sound hochgeladen: {safe_name}", user="Dashboard")
     return {"ok": True, "filename": safe_name, "size_kb": round(len(content) / 1024, 1)}
 
 
@@ -330,8 +328,8 @@ async def delete_sound(filename: str, request: Request) -> dict[str, Any]:
 # ==============================================================================
 @app.post("/api/panic")
 async def api_panic(request: Request) -> dict[str, Any]:
-    role = auth_manager.require_roles(request, ["admin", "streamer", "mod"])
-    return await ws_hub.trigger_panic(source=f"Dashboard ({role.upper()})")
+    auth_manager.require_roles(request, ["admin", "streamer", "mod"])
+    return await ws_hub.trigger_panic(source="Dashboard")
 
 
 @app.post("/api/mute")
@@ -350,12 +348,12 @@ async def api_test_trigger(request: Request) -> dict[str, Any]:
     role = auth_manager.require_roles(request, ["admin", "streamer", "mod"])
     cfg = config_manager.get_config()
     if role == "mod" and not cfg.get("auth", {}).get("permissions", {}).get("mod", {}).get("can_trigger_tests", True):
-        raise HTTPException(status_code=403, detail="Test-Trigger für Mods deaktiviert.")
+        raise HTTPException(status_code=403, detail="Test-Trigger nicht gestattet.")
 
     body = await request.json()
     trigger_id = body.get("trigger_id")
     direct_action = body.get("action")
-    user_name = body.get("user", f"Simulator ({role})")
+    user_name = body.get("user", "Simulator")
     user_input = body.get("user_input", "Hallo StreamGremlin!")
 
     if trigger_id:
@@ -459,15 +457,15 @@ async def twitch_auth_url(request: Request) -> dict[str, str]:
 @app.get("/api/twitch/callback")
 async def twitch_oauth_callback(request: Request, code: str = "") -> RedirectResponse:
     if not code:
-        return RedirectResponse(url="/admin?twitch=error")
+        return RedirectResponse(url="/?twitch=error")
     base = str(request.base_url).rstrip("/")
     redirect_uri = f"{base}/api/twitch/callback"
     try:
         await twitch_manager.exchange_code(code=code, redirect_uri=redirect_uri)
-        return RedirectResponse(url="/admin?twitch=connected")
+        return RedirectResponse(url="/?twitch=connected")
     except Exception as exc:
         logger.error("Twitch OAuth callback error: %s", exc)
-        return RedirectResponse(url="/admin?twitch=error")
+        return RedirectResponse(url="/?twitch=error")
 
 
 @app.post("/api/twitch/sync-rewards")

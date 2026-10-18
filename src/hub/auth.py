@@ -40,12 +40,9 @@ def verify_password(plain: str, hashed: str) -> bool:
 class AuthManager:
     def __init__(self, config_manager: ConfigManager) -> None:
         self.cm = config_manager
-
     def is_setup_required(self) -> bool:
-        """Prüft, ob beim Erststart noch kein Admin-Passwort vergeben wurde."""
-        cfg = self.cm.get_config()
-        admin_hash = cfg.get("auth", {}).get("admin_password_hash", "")
-        return not bool(admin_hash)
+        """Setup wird über .env Passwörter gesteuert, daher immer False."""
+        return False
 
     def initial_setup(
         self,
@@ -53,10 +50,8 @@ class AuthManager:
         streamer_password: str | None = None,
         mod_password: str | None = None,
     ) -> dict[str, str]:
-        if not self.is_setup_required():
-            raise ValueError("Setup wurde bereits abgeschlossen. Bitte einloggen.")
         if len(admin_password) < 4:
-            raise ValueError("Admin-Passwort muss mindestens 4 Zeichen lang sein.")
+            raise ValueError("Passwort muss mindestens 4 Zeichen lang sein.")
 
         streamer_pw = streamer_password or f"streamer-{secrets.token_hex(4)}"
         mod_pw = mod_password or f"mod-{secrets.token_hex(4)}"
@@ -76,18 +71,35 @@ class AuthManager:
 
     def authenticate_by_password(self, password: str) -> str | None:
         """
-        Prüft das eingegebene Passwort gegen Admin, Streamer und Mod.
-        Gibt die erkannte Rolle ('admin', 'streamer', 'mod') oder None zurück.
+        Prüft das Passwort zuerst gegen .env, dann als Fallback gegen config.yaml.
+        Gibt 'admin', 'streamer', 'mod' oder None zurück.
         """
+        if not password:
+            return None
+
+        # 1. Check passwords from .env
+        env = self.cm.read_env()
+        admin_env = env.get("ADMIN_PASSWORD")
+        streamer_env = env.get("STREAMER_PASSWORD")
+        mod_env = env.get("MOD_PASSWORD")
+
+        if admin_env and password == admin_env:
+            return "admin"
+        if streamer_env and password == streamer_env:
+            return "streamer"
+        if mod_env and password == mod_env:
+            return "mod"
+
+        # 2. Check config hashes (fallback)
         cfg = self.cm.get_config()
         auth_cfg = cfg.get("auth", {})
-
         if verify_password(password, auth_cfg.get("admin_password_hash", "")):
             return "admin"
         if verify_password(password, auth_cfg.get("streamer_password_hash", "")):
             return "streamer"
         if verify_password(password, auth_cfg.get("mod_password_hash", "")):
             return "mod"
+
         return None
 
     def change_password(
@@ -133,10 +145,10 @@ class AuthManager:
             elif target_role == "mod":
                 auth_cfg["mod_password_hash"] = hash_password(new_password)
             else:
-                raise PermissionError("Streamer können das Admin-Passwort nicht ändern.")
+                raise PermissionError("Keine Berechtigung zur Passwortänderung.")
 
         else:
-            raise PermissionError("Moderatoren haben keine Berechtigung, Passwörter zu ändern.")
+            raise PermissionError("Keine Berechtigung zur Passwortänderung.")
 
         self.cm.save_config(cfg)
 
@@ -198,6 +210,6 @@ class AuthManager:
         if role not in allowed:
             raise HTTPException(
                 status_code=403,
-                detail=f"Zugriff verweigert für Rolle '{role}'. Erforderlich: {allowed}",
+                detail="Zugriff verweigert.",
             )
         return role

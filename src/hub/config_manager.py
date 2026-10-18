@@ -58,6 +58,15 @@ class ConfigManager:
         if "PORT" not in env_vars:
             env_vars["PORT"] = "4736"
             changed = True
+        if not env_vars.get("ADMIN_PASSWORD"):
+            env_vars["ADMIN_PASSWORD"] = "admin"
+            changed = True
+        if not env_vars.get("STREAMER_PASSWORD"):
+            env_vars["STREAMER_PASSWORD"] = "streamer"
+            changed = True
+        if not env_vars.get("MOD_PASSWORD"):
+            env_vars["MOD_PASSWORD"] = "mod"
+            changed = True
         if changed or not self.env_path.exists():
             self.write_env(env_vars, encrypt_age=True)
         # Apply to current process environment
@@ -80,6 +89,9 @@ class ConfigManager:
             "SESSION_SECRET",
             "AGENT_TOKEN",
             "WEBHOOK_TOKEN",
+            "ADMIN_PASSWORD",
+            "STREAMER_PASSWORD",
+            "MOD_PASSWORD",
             "TWITCH_CLIENT_ID",
             "TWITCH_CLIENT_SECRET",
             "TWITCH_BROADCASTER_CHANNEL",

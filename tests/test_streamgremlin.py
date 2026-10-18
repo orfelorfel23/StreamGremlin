@@ -21,17 +21,27 @@ def run_tests() -> None:
     orig_cfg_text = config_manager.config_path.read_text(encoding="utf-8")
     try:
         cfg = config_manager.get_config(force_reload=True)
-        cfg.setdefault("auth", {})["admin_password_hash"] = hash_password("test_admin_pw")
-        cfg["auth"]["streamer_password_hash"] = hash_password("test_streamer_pw")
-        cfg["auth"]["mod_password_hash"] = hash_password("test_mod_pw")
+        cfg.setdefault("auth", {})["admin_password_hash"] = hash_password("test_admin_pw_hash")
+        cfg["auth"]["streamer_password_hash"] = hash_password("test_streamer_pw_hash")
+        cfg["auth"]["mod_password_hash"] = hash_password("test_mod_pw_hash")
         config_manager.save_config(cfg)
-        config_manager.write_env({"WEBHOOK_TOKEN": "test_webhook_secret"}, encrypt_age=False)
+        config_manager.write_env({
+            "WEBHOOK_TOKEN": "test_webhook_secret",
+            "ADMIN_PASSWORD": "test_admin_pw",
+            "STREAMER_PASSWORD": "test_streamer_pw",
+            "MOD_PASSWORD": "test_mod_pw",
+        }, encrypt_age=False)
 
-        # 1. Test 3-Tier Role Authentication
+        # 1. Test .env Password Authentication
         assert auth_manager.authenticate_by_password("test_admin_pw") == "admin"
         assert auth_manager.authenticate_by_password("test_streamer_pw") == "streamer"
         assert auth_manager.authenticate_by_password("test_mod_pw") == "mod"
         assert auth_manager.authenticate_by_password("wrong_pw") is None
+
+        # Test Hash Fallback
+        assert auth_manager.authenticate_by_password("test_admin_pw_hash") == "admin"
+        assert auth_manager.authenticate_by_password("test_streamer_pw_hash") == "streamer"
+        assert auth_manager.authenticate_by_password("test_mod_pw_hash") == "mod"
 
         # Test Hierarchical Password Changes
         # Admin can change streamer and mod without current_password, and admin with current_password
