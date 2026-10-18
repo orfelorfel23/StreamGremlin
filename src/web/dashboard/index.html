@@ -7,19 +7,23 @@
   <link rel="icon" type="image/png" href="/assets/icon.png" />
   <style>
     :root {
-      --bg-base: #0b0d11;
-      --bg-panel: #12151c;
-      --bg-elevated: #181d26;
-      --bg-input: #090b0e;
-      --border: #222733;
-      --border-focus: #3b82f6;
-      --text-main: #f1f5f9;
-      --text-muted: #828c9e;
-      --accent-green: #10b981;
+      --bg-base: #090a0f;
+      --bg-panel: #12151e;
+      --bg-elevated: #1a1e2a;
+      --bg-input: #0b0d13;
+      --border: #282f42;
+      --border-focus: #9146ff;
+      --text-main: #f3f4f6;
+      --text-muted: #8c93a4;
+      --accent-purple: #9146ff;
+      --accent-purple-hover: #772ce8;
+      --accent-purple-dim: rgba(145, 70, 255, 0.12);
+      --accent-purple-light: #c084fc;
+      --accent-lime: #22c55e;
+      --accent-lime-bright: #38ff7a;
+      --accent-lime-dim: rgba(34, 197, 94, 0.12);
       --accent-amber: #f59e0b;
       --accent-red: #ef4444;
-      --accent-blue: #3b82f6;
-      --accent-purple: #8b5cf6;
       --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
       --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     }
@@ -68,24 +72,26 @@
       width: 28px;
       height: 28px;
       object-fit: contain;
-      border: 1px solid var(--border);
+      border: 1px solid rgba(145, 70, 255, 0.4);
       border-radius: 4px;
       background: #000;
     }
     .brand-title {
-      font-weight: 700;
-      font-size: 14px;
+      font-weight: 800;
+      font-size: 15px;
       letter-spacing: 0.5px;
-      color: var(--text-main);
+      background: linear-gradient(135deg, #f3f4f6 30%, #a855f7 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
     }
     .brand-version {
       font-family: var(--font-mono);
       font-size: 11px;
-      color: var(--text-muted);
-      background: var(--bg-elevated);
+      color: var(--accent-lime);
+      background: var(--accent-lime-dim);
       padding: 2px 6px;
       border-radius: 3px;
-      border: 1px solid var(--border);
+      border: 1px solid rgba(34, 197, 94, 0.35);
     }
 
     .status-group {
@@ -112,7 +118,12 @@
       display: inline-block;
     }
     .status-dot.on {
-      background: var(--accent-green);
+      background: var(--accent-lime);
+      box-shadow: 0 0 6px var(--accent-lime);
+    }
+    .status-dot.twitch-on {
+      background: var(--accent-purple);
+      box-shadow: 0 0 6px var(--accent-purple);
     }
     .status-dot.warn {
       background: var(--accent-amber);
@@ -124,11 +135,11 @@
     .role-badge {
       font-family: var(--font-mono);
       font-size: 11px;
-      font-weight: 600;
+      font-weight: 700;
       padding: 5px 9px;
-      border: 1px solid var(--border);
-      color: var(--text-main);
-      background: var(--bg-elevated);
+      border: 1px solid rgba(145, 70, 255, 0.5);
+      color: var(--accent-purple-light);
+      background: var(--accent-purple-dim);
       border-radius: 3px;
     }
 
@@ -192,8 +203,9 @@
     }
     .nav-btn.active {
       background: var(--bg-elevated);
-      color: var(--text-main);
+      color: var(--accent-lime);
       border-color: var(--border);
+      border-left: 3px solid var(--accent-purple);
       font-weight: 600;
     }
 
@@ -271,13 +283,14 @@
       border-color: #333a4c;
     }
     .btn-primary {
-      background: var(--accent-blue);
+      background: var(--accent-purple);
       color: #fff;
-      border-color: var(--accent-blue);
+      border-color: var(--accent-purple);
+      box-shadow: 0 2px 8px rgba(145, 70, 255, 0.25);
     }
     .btn-primary:hover {
-      background: #2563eb;
-      border-color: #2563eb;
+      background: var(--accent-purple-hover);
+      border-color: var(--accent-purple-hover);
     }
     .btn-danger {
       background: rgba(239, 68, 68, 0.15);
@@ -335,14 +348,15 @@
       text-align: left;
       cursor: pointer;
       color: var(--text-main);
-      transition: background 0.1s, border-color 0.1s;
+      transition: background 0.1s, border-color 0.1s, box-shadow 0.1s;
       display: flex;
       flex-direction: column;
       gap: 3px;
     }
     .pad-btn:hover {
-      background: #1f2532;
-      border-color: #3b82f6;
+      background: #1d212c;
+      border-color: var(--accent-purple);
+      box-shadow: 0 0 10px rgba(145, 70, 255, 0.2);
     }
     .pad-type {
       font-family: var(--font-mono);
@@ -372,11 +386,13 @@
       padding: 4px 10px;
       border-radius: 3px;
       cursor: pointer;
+      transition: all 0.1s;
     }
     .cat-btn.active {
-      background: var(--bg-elevated);
-      color: var(--text-main);
-      border-color: var(--accent-blue);
+      background: var(--accent-purple-dim);
+      color: #e9d5ff;
+      border-color: var(--accent-purple);
+      font-weight: 600;
     }
 
     /* Data Tables */
@@ -454,20 +470,22 @@
     .modal-backdrop {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0, 0, 0, 0.75);
+      background: rgba(4, 5, 8, 0.85);
+      backdrop-filter: blur(4px);
       display: none;
       align-items: center;
       justify-content: center;
       z-index: 1000;
     }
     .modal-box {
-      background: var(--bg-panel);
+      background: #12151e;
       border: 1px solid var(--border);
-      border-radius: 4px;
+      border-radius: 6px;
       width: 580px;
       max-width: 95vw;
       max-height: 90vh;
       overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(145, 70, 255, 0.25);
     }
 
     .toast {
@@ -767,7 +785,7 @@
             <div class="panel-body">
               <ol style="padding-left:16px; display:flex; flex-direction:column; gap:10px; color:var(--text-main); font-size:12px;">
                 <li>
-                  Öffne die <a href="https://dev.twitch.tv/console/apps" target="_blank" style="color:var(--accent-blue);">Twitch Developer Console</a> und klicke auf <strong>Anwendung registrieren</strong>.
+                  Öffne die <a href="https://dev.twitch.tv/console/apps" target="_blank" style="color:var(--accent-purple); font-weight:600;">Twitch Developer Console</a> und klicke auf <strong>Anwendung registrieren</strong>.
                 </li>
                 <li>
                   Vergib einen Namen (z. B. <code>StreamGremlin</code>) und trage als <strong>OAuth-Weiterleitungs-URL</strong> ein:
@@ -984,7 +1002,7 @@
         </div>
 
         <div id="setup-view" style="display:none;">
-          <p style="color:var(--accent-blue); font-size:12px; margin-bottom:12px;">
+          <p style="color:var(--accent-lime); font-size:12px; margin-bottom:12px;">
             Ersteinrichtung: Bitte lege die Passwörter für das System fest.
           </p>
           <div class="form-row">

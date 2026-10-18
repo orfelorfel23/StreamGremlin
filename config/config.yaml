@@ -1,45 +1,40 @@
-# ==============================================================================
-# StreamGremlin - Konfigurationsdatei (Hot-Reloading)
-# ==============================================================================
 general:
   port: 4736
-  prefix: "!"
+  prefix: '!'
   global_cooldown_sec: 3
   user_cooldown_sec: 15
   bot_chat_reply: true
-  overlay_resolution: "1920x1080"
+  overlay_resolution: 1920x1080
   troll_hud_enabled: true
   chat_velocity_threshold: 15
   chat_emotes_auto_bounce: true
-  n8n_webhook_url: ""
+  n8n_webhook_url: ''
   home_assistant:
-    url: "https://home.orfel.de"
-    default_entity: "light.gaming_zimmer"
-
+    url: https://home.orfel.de
+    default_entity: light.gaming_zimmer
 tts:
   enabled: true
-  engine: "edge-tts"
-  default_voice: "de-DE-KatjaNeural"
+  engine: edge-tts
+  default_voice: de-DE-KatjaNeural
   available_voices:
-    - id: "de-DE-KatjaNeural"
-      label: "Katja (DE - Natürlich Weiblich)"
-    - id: "de-DE-ConradNeural"
-      label: "Conrad (DE - Klar Männlich)"
-    - id: "de-DE-KillianNeural"
-      label: "Killian (DE - Dynamisch Männlich)"
-    - id: "de-DE-AmalaNeural"
-      label: "Amala (DE - Modern Weiblich)"
-    - id: "en-US-ChristopherNeural"
-      label: "Christopher (US - Narrator)"
-    - id: "en-US-JennyNeural"
-      label: "Jenny (US - Conversational)"
+  - id: de-DE-KatjaNeural
+    label: Katja (DE - Natürlich Weiblich)
+  - id: de-DE-ConradNeural
+    label: Conrad (DE - Klar Männlich)
+  - id: de-DE-KillianNeural
+    label: Killian (DE - Dynamisch Männlich)
+  - id: de-DE-AmalaNeural
+    label: Amala (DE - Modern Weiblich)
+  - id: en-US-ChristopherNeural
+    label: Christopher (US - Narrator)
+  - id: en-US-JennyNeural
+    label: Jenny (US - Conversational)
   max_characters: 200
-  volume: 0.90
-
+  volume: 0.9
 auth:
-  admin_password_hash: ""
-  streamer_password_hash: ""
-  mod_password_hash: ""
+  admin_password_hash: $2b$12$usDJq9whte7Gordtd4zovuiYb0W6uSC.d2onp2FDGGnvdkqyBfe6m
+  streamer_password_hash: $2b$12$BG4bRl3ukYIBlhysULLMousxakhs0y53b6N/.eJWi9gsbqEOuMnyi
+  mod_password_hash: $2b$12$TUbCUC6O7VotE7KR5en2/.J81Q3wxoyi2OzXYe.StSpJvDLRFc/zS
   permissions:
     streamer:
       can_manage_triggers: true
@@ -52,129 +47,142 @@ auth:
       can_use_live_deck: true
       can_trigger_tests: true
       can_mute_audio: true
-
 sounds:
   bonk.wav:
     volume: 0.85
   flashbang.wav:
-    volume: 0.90
+    volume: 0.9
   airhorn.wav:
     volume: 0.75
   evil_laugh.wav:
     volume: 0.85
   censor_beep.wav:
-    volume: 0.80
+    volume: 0.8
   hype_horn.wav:
     volume: 0.85
-
 triggers:
-  - id: "cmd_bonk"
-    name: "Bonk"
-    enabled: true
-    type: "command"
-    pattern: "bonk"
-    match_mode: "word"
-    allowed_roles: ["everyone"]
-    cooldown_sec: 5
-    actions:
-      - type: "sound"
-        pool: ["bonk.wav"]
-        volume: 0.85
-      - type: "bouncing_emotes"
-        count: 5
-        is_hype: false
-
-  - id: "cmd_tts"
-    name: "Text-to-Speech"
-    enabled: true
-    type: "command"
-    pattern: "tts"
-    match_mode: "word"
-    allowed_roles: ["subscriber", "mod", "broadcaster"]
-    cooldown_sec: 15
-    actions:
-      - type: "tts"
-        voice: "de-DE-KatjaNeural"
-        volume: 0.90
-
-  - id: "cp_flashbang"
-    name: "Flashbang"
-    enabled: true
-    type: "channel_point"
-    title: "Flashbang werfen"
-    cost: 1500
-    allowed_roles: ["everyone"]
-    cooldown_sec: 20
-    actions:
-      - type: "flashbang"
-        duration_ms: 3000
-      - type: "sound"
-        pool: ["flashbang.wav"]
-        volume: 0.90
-
-  - id: "cp_invert_wasd"
-    name: "Steuerung invertieren (WASD)"
-    enabled: true
-    type: "channel_point"
-    title: "Steuerung invertieren (10s)"
-    cost: 2500
-    allowed_roles: ["everyone"]
-    cooldown_sec: 30
-    actions:
-      - type: "invert_keys"
-        pairs: [["w", "s"], ["a", "d"]]
-        duration_sec: 10
-      - type: "troll_hud"
-        title: "Steuerung invertiert"
-        duration_sec: 10
-      - type: "sound"
-        pool: ["evil_laugh.wav"]
-        volume: 0.85
-      - type: "chat_reply"
-        message: "@{user} hat die Steuerung für 10 Sekunden invertiert."
-
-  - id: "cp_red_light"
-    name: "Smart Home: Rotes Licht"
-    enabled: true
-    type: "channel_point"
-    title: "Raumlicht auf Rot schalten"
-    cost: 1000
-    allowed_roles: ["everyone"]
-    cooldown_sec: 30
-    actions:
-      - type: "smart_home"
-        entity_id: "light.gaming_zimmer"
-        rgb_color: [255, 0, 0]
-        brightness: 255
-        duration_sec: 15
-
-  - id: "cmd_bomb"
-    name: "Zeitbombe Minigame"
-    enabled: true
-    type: "command"
-    pattern: "bombe"
-    match_mode: "word"
-    allowed_roles: ["mod", "broadcaster"]
-    cooldown_sec: 60
-    actions:
-      - type: "timebomb"
-        defuse_word: "cut"
-        required_count: 8
-        duration_sec: 20
-
-  - id: "evt_raid"
-    name: "Raid Empfang"
-    enabled: true
-    type: "raid"
-    min_viewers: 3
-    allowed_roles: ["everyone"]
-    cooldown_sec: 5
-    actions:
-      - type: "confetti_burst"
-        duration_ms: 5000
-      - type: "bouncing_emotes"
-        count: 25
-        is_hype: true
-      - type: "sound"
-        pool: ["airhorn.wav"]
-        volume: 0.85
+- id: cmd_bonk
+  name: Bonk
+  enabled: true
+  type: command
+  pattern: bonk
+  match_mode: word
+  allowed_roles:
+  - everyone
+  cooldown_sec: 5
+  actions:
+  - type: sound
+    pool:
+    - bonk.wav
+    volume: 0.85
+  - type: bouncing_emotes
+    count: 5
+    is_hype: false
+- id: cmd_tts
+  name: Text-to-Speech
+  enabled: true
+  type: command
+  pattern: tts
+  match_mode: word
+  allowed_roles:
+  - subscriber
+  - mod
+  - broadcaster
+  cooldown_sec: 15
+  actions:
+  - type: tts
+    voice: de-DE-KatjaNeural
+    volume: 0.9
+- id: cp_flashbang
+  name: Flashbang
+  enabled: true
+  type: channel_point
+  title: Flashbang werfen
+  cost: 1500
+  allowed_roles:
+  - everyone
+  cooldown_sec: 20
+  actions:
+  - type: flashbang
+    duration_ms: 3000
+  - type: sound
+    pool:
+    - flashbang.wav
+    volume: 0.9
+- id: cp_invert_wasd
+  name: Steuerung invertieren (WASD)
+  enabled: true
+  type: channel_point
+  title: Steuerung invertieren (10s)
+  cost: 2500
+  allowed_roles:
+  - everyone
+  cooldown_sec: 30
+  actions:
+  - type: invert_keys
+    pairs:
+    - - w
+      - s
+    - - a
+      - d
+    duration_sec: 10
+  - type: troll_hud
+    title: Steuerung invertiert
+    duration_sec: 10
+  - type: sound
+    pool:
+    - evil_laugh.wav
+    volume: 0.85
+  - type: chat_reply
+    message: '@{user} hat die Steuerung für 10 Sekunden invertiert.'
+- id: cp_red_light
+  name: 'Smart Home: Rotes Licht'
+  enabled: true
+  type: channel_point
+  title: Raumlicht auf Rot schalten
+  cost: 1000
+  allowed_roles:
+  - everyone
+  cooldown_sec: 30
+  actions:
+  - type: smart_home
+    entity_id: light.gaming_zimmer
+    rgb_color:
+    - 255
+    - 0
+    - 0
+    brightness: 255
+    duration_sec: 15
+- id: cmd_bomb
+  name: Zeitbombe Minigame
+  enabled: true
+  type: command
+  pattern: bombe
+  match_mode: word
+  allowed_roles:
+  - mod
+  - broadcaster
+  cooldown_sec: 60
+  actions:
+  - type: timebomb
+    defuse_word: cut
+    required_count: 8
+    duration_sec: 20
+- id: evt_raid
+  name: Raid Empfang
+  enabled: true
+  type: raid
+  min_viewers: 3
+  allowed_roles:
+  - everyone
+  cooldown_sec: 5
+  actions:
+  - type: confetti_burst
+    duration_ms: 5000
+  - type: bouncing_emotes
+    count: 25
+    is_hype: true
+  - type: sound
+    pool:
+    - airhorn.wav
+    volume: 0.85
