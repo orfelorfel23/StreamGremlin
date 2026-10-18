@@ -180,9 +180,9 @@ class WebSocketHub:
         await self.broadcast_agent({"action": "panic", "reason": source})
         entry = await self.log_event(
             event_type="panic",
-            title="🛑 NOTFALL-PANIK AUSGELÖST",
+            title="Not-Aus ausgelöst",
             user=source,
-            details="Alle Sounds, Filter und Steuerungs-Hooks sofort gestoppt.",
+            details="Alle Sounds, Overlays und Steuerungs-Hooks gestoppt.",
         )
         return {"ok": True, "event": entry}
 
@@ -374,7 +374,7 @@ class WebSocketHub:
                     "effect": act_type,
                     "duration_ms": int(action.get("duration_ms", 4000)),
                     "angle": int(action.get("angle", 18)),
-                    "text": action.get("text", f"🔥 {user} sorgt für Chaos!"),
+                    "text": action.get("text", f"Aktion von {user}"),
                     "image_url": action.get("image_url", "/assets/icon.png"),
                     "user": user,
                 },
@@ -512,7 +512,7 @@ class WebSocketHub:
         # --- 6. CHAT REPLY ---
         elif act_type == "chat_reply":
             if cfg.get("general", {}).get("bot_chat_reply", True) and chat_reply_callback:
-                template = action.get("message", "👹 @{user} hat {title} ausgelöst!")
+                template = action.get("message", "@{user} hat {title} ausgelöst.")
                 formatted = template.replace("{user}", user)
                 await chat_reply_callback(formatted)
 
@@ -576,7 +576,7 @@ class WebSocketHub:
             )
             await self.log_event(
                 event_type="chat_velocity",
-                title="🔥 Chat-Hype-Spike erkannt!",
-                user="Chat-Crowd",
+                title="Chat-Hype erkannt",
+                user="Chat",
                 details=f"{len(recent_5s)} Nachrichten in 5s",
             )
