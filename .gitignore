@@ -20,6 +20,10 @@ dist/
 tts_cache/
 *.tmp
 
+# Instance Overrides (Runtime per streamer instance)
+config/overrides.*.yaml
+!config/overrides.example.yaml
+
 # OS
 .DS_Store
 Thumbs.db

@@ -1,0 +1,15 @@
+# StreamGremlin Instance Overrides (Beispiel)
+# Diese Datei wird automatisch von StreamGremlin für jede Instanz erzeugt:
+# z. B. config/overrides.jonisdaily.yaml oder config/overrides.niggephotography.yaml
+#
+# Streamer können darin trigger-spezifische Cooldowns oder Aktivierungs-Zustände
+# überschreiben, ohne die globale config.yaml zu verändern.
+
+general:
+  global_cooldown_sec: 3
+  user_cooldown_sec: 15
+
+triggers:
+  cmd_bonk:
+    cooldown_sec: 25
+    enabled: true

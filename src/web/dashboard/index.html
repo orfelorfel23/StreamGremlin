@@ -708,9 +708,10 @@
         <div class="panel">
           <div class="panel-head">
             <span>Konfigurierte Trigger & Kanalpunkte</span>
-            <div style="display:flex; gap:8px;">
+            <div style="display:flex; gap:8px; align-items:center;">
+              <span id="instance-tag" class="badge" style="display:none; background:var(--bg-elevated); border:1px solid var(--border); color:var(--text-muted); font-size:12px; padding:5px 9px;"></span>
               <button class="btn" onclick="syncTwitchRewards()">Kanalpunkte bei Twitch anlegen</button>
-              <button class="btn btn-primary" onclick="openTriggerModal()">+ Neuer Trigger</button>
+              <button class="btn btn-primary" id="btn-add-trigger" onclick="openTriggerModal()">+ Neuer Trigger</button>
             </div>
           </div>
           <div class="panel-body" style="padding:0;">
@@ -721,6 +722,7 @@
                   <th>Name</th>
                   <th>Typ</th>
                   <th>Muster / Kosten</th>
+                  <th>Cooldown</th>
                   <th>Matching</th>
                   <th>Rollen</th>
                   <th>Aktionen</th>
@@ -961,11 +963,14 @@
   <div class="modal-backdrop" id="trigger-modal">
     <div class="modal-box">
       <div class="panel-head">
-        <span>Trigger konfigurieren</span>
+        <span id="modal-title-trigger">Trigger konfigurieren</span>
         <button class="btn" onclick="closeTriggerModal()">✕</button>
       </div>
       <div class="panel-body">
         <input type="hidden" id="trig-edit-index" value="-1" />
+        <div id="trig-streamer-notice" style="display:none; background:rgba(124, 58, 237, 0.15); border:1px solid var(--accent-purple); border-radius:4px; padding:10px; margin-bottom:12px; font-size:12px; color:var(--text-main);">
+          <strong>💡 Instanz-Cooldown anpassen:</strong> Globale Trigger-Aktionen werden zentral vom Admin gepflegt. Du kannst hier den <strong>Cooldown (Sekunden)</strong> individuell für deinen Stream einstellen.
+        </div>
         <div class="grid-equal">
           <div class="form-row">
             <label class="form-label">Anzeigename</label>
@@ -1156,6 +1161,15 @@
       if (autoPanel) {
         autoPanel.style.display = (role === 'admin') ? 'block' : 'none';
       }
+      const btnAdd = document.getElementById('btn-add-trigger');
+      if (btnAdd) {
+        btnAdd.style.display = (role === 'admin') ? 'inline-block' : 'none';
+      }
+      const instanceTag = document.getElementById('instance-tag');
+      if (instanceTag && appConfig.instance_id) {
+        instanceTag.style.display = 'inline-block';
+        instanceTag.innerHTML = `Instanz: <strong>${appConfig.instance_id}</strong>`;
+      }
     }
 
     async function doLogin() {
@@ -1186,7 +1200,9 @@
       if (!res.ok) return;
       const data = await res.json();
       appConfig = data.config || {};
+      if (data.instance_id) appConfig.instance_id = data.instance_id;
       soundsList = data.sounds_list || [];
+      applyRoleRestrictions(currentRole);
       updateStatusHeader(data.status || {});
       renderTriggerPads();
       renderTriggersTable();
@@ -1242,7 +1258,7 @@
       const tbody = document.getElementById('triggers-table-body');
       const triggers = appConfig.triggers || [];
       if (!triggers.length) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">Keine Trigger vorhanden.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">Keine Trigger vorhanden.</td></tr>';
         return;
       }
       tbody.innerHTML = triggers.map((t, idx) => `
@@ -1253,12 +1269,18 @@
           <td><strong>${t.name || t.title || t.id}</strong></td>
           <td><span class="mono">${t.type}</span></td>
           <td><span class="mono">${t.pattern || (t.cost ? t.cost + ' Pkt.' : '-')}</span></td>
+          <td>
+            ${t.is_custom_cooldown
+              ? `<span class="badge" style="background:var(--accent-purple); color:#fff; font-size:11px;" title="Individueller Cooldown für diese Instanz">${t.cooldown_sec}s (eigen)</span>`
+              : `<span class="mono">${t.cooldown_sec || 5}s</span>`
+            }
+          </td>
           <td><span class="mono">${t.match_mode || 'word'}</span></td>
           <td><span class="mono">${(t.allowed_roles || ['everyone']).join(', ')}</span></td>
           <td><span class="mono">${(t.actions || []).map(a => a.type).join(', ')}</span></td>
           <td>
-            <button class="btn" style="padding:3px 7px; margin-right:4px;" onclick="editTrigger(${idx})">Edit</button>
-            <button class="btn btn-danger" style="padding:3px 7px;" onclick="deleteTrigger(${idx})">Del</button>
+            <button class="btn" style="padding:3px 7px; margin-right:4px;" onclick="editTrigger(${idx})">${currentRole === 'admin' ? 'Edit' : 'Cooldown'}</button>
+            ${currentRole === 'admin' ? `<button class="btn btn-danger" style="padding:3px 7px;" onclick="deleteTrigger(${idx})">Del</button>` : ''}
           </td>
         </tr>
       `).join('');
@@ -1425,6 +1447,10 @@
     // Trigger Modal & Operations
     // =========================================================================
     function openTriggerModal() {
+      if (currentRole !== 'admin') {
+        showToast('Nur Admins können neue globale Effekte anlegen.');
+        return;
+      }
       document.getElementById('trig-edit-index').value = '-1';
       document.getElementById('trig-name').value = '';
       document.getElementById('trig-type').value = 'command';
@@ -1437,6 +1463,16 @@
       document.getElementById('trig-visual').value = '';
       document.getElementById('trig-agent').value = '';
       document.getElementById('trig-duration').value = '10';
+
+      const notice = document.getElementById('trig-streamer-notice');
+      if (notice) notice.style.display = 'none';
+
+      ['trig-name', 'trig-type', 'trig-pattern', 'trig-match-mode', 'trig-cost', 'trig-role', 'trig-sounds', 'trig-visual', 'trig-agent', 'trig-duration'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = false;
+      });
+
+      document.getElementById('modal-title-trigger').innerText = 'Neuen Trigger anlegen (Global für alle)';
       document.getElementById('trigger-modal').style.display = 'flex';
     }
 
@@ -1474,17 +1510,55 @@
       document.getElementById('trig-visual').value = visual;
       document.getElementById('trig-agent').value = agent;
       document.getElementById('trig-duration').value = duration;
+
+      const isStreamer = (currentRole === 'streamer');
+      const notice = document.getElementById('trig-streamer-notice');
+      if (notice) notice.style.display = isStreamer ? 'block' : 'none';
+
+      ['trig-name', 'trig-type', 'trig-pattern', 'trig-match-mode', 'trig-cost', 'trig-role', 'trig-sounds', 'trig-visual', 'trig-agent', 'trig-duration'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = isStreamer;
+      });
+
+      document.getElementById('modal-title-trigger').innerText = isStreamer
+        ? `Cooldown für '${t.name || t.id}' anpassen`
+        : 'Trigger bearbeiten (Global)';
+
       document.getElementById('trigger-modal').style.display = 'flex';
     }
 
     async function saveTriggerFromModal() {
       const idx = parseInt(document.getElementById('trig-edit-index').value);
+      const cd = parseInt(document.getElementById('trig-cd').value) || 10;
+
+      if (currentRole === 'streamer') {
+        if (idx >= 0 && appConfig.triggers && appConfig.triggers[idx]) {
+          appConfig.triggers[idx].cooldown_sec = cd;
+          const res = await fetch('/api/config', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ triggers: appConfig.triggers }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.config) appConfig = data.config;
+            showToast('Instanz-Cooldown gespeichert');
+            closeTriggerModal();
+            renderTriggersTable();
+            renderTriggerPads();
+          } else {
+            showToast('Fehler beim Speichern');
+          }
+        }
+        return;
+      }
+
+      // Admin full save
       const name = document.getElementById('trig-name').value.trim() || 'Trigger';
       const type = document.getElementById('trig-type').value;
       const pattern = document.getElementById('trig-pattern').value.trim();
       const match_mode = document.getElementById('trig-match-mode').value;
       const cost = parseInt(document.getElementById('trig-cost').value) || 0;
-      const cd = parseInt(document.getElementById('trig-cd').value) || 10;
       const role = document.getElementById('trig-role').value;
       const duration = parseInt(document.getElementById('trig-duration').value) || 10;
 
@@ -1551,7 +1625,9 @@
         body: JSON.stringify(appConfig),
       });
       if (res.ok) {
-        showToast('Trigger gespeichert');
+        const data = await res.json();
+        if (data.config) appConfig = data.config;
+        showToast('Globaler Trigger gespeichert');
         closeTriggerModal();
         renderTriggersTable();
         renderTriggerPads();
@@ -1561,12 +1637,16 @@
     async function toggleTriggerEnabled(idx, state) {
       if (!appConfig.triggers || !appConfig.triggers[idx]) return;
       appConfig.triggers[idx].enabled = state;
-      await fetch('/api/config', {
+      const res = await fetch('/api/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(appConfig),
+        body: JSON.stringify(currentRole === 'streamer' ? { triggers: appConfig.triggers } : appConfig),
       });
-      showToast(state ? 'Trigger aktiviert' : 'Trigger pausiert');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.config) appConfig = data.config;
+        showToast(state ? 'Trigger aktiviert' : 'Trigger pausiert');
+      }
     }
 
     async function deleteTrigger(idx) {

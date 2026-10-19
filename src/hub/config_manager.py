@@ -38,7 +38,13 @@ class ConfigManager:
             os.environ.get("AGE_PUBLIC_KEY_FILE")
             or (self.repo_root / "keys" / "age-public-key.txt")
         )
+        self.instance_id = str(os.environ.get("INSTANCE_ID") or "main").strip()
+        self.overrides_path = Path(
+            os.environ.get("OVERRIDES_PATH")
+            or (self.config_path.parent / f"overrides.{self.instance_id}.yaml")
+        )
         self._last_mtime: float = 0.0
+        self._last_overrides_mtime: float = 0.0
         self._cache: dict[str, Any] = {}
         self.ensure_config_exists()
         self.ensure_env_exists()
@@ -157,21 +163,73 @@ class ConfigManager:
         }
 
     def get_config(self, force_reload: bool = False) -> dict[str, Any]:
-        """Lädt `config.yaml` mit automatischem Hot-Reloading bei Dateiänderung."""
+        """Lädt `config.yaml` mit automatischem Hot-Reloading und merged Instanz-Overrides."""
         try:
             mtime = self.config_path.stat().st_mtime
         except FileNotFoundError:
             self.ensure_config_exists()
             mtime = self.config_path.stat().st_mtime if self.config_path.exists() else 0.0
 
-        if force_reload or not self._cache or mtime > self._last_mtime:
+        try:
+            ovr_mtime = self.overrides_path.stat().st_mtime if self.overrides_path.exists() else 0.0
+        except FileNotFoundError:
+            ovr_mtime = 0.0
+
+        if (
+            force_reload
+            or not self._cache
+            or mtime > self._last_mtime
+            or ovr_mtime > self._last_overrides_mtime
+        ):
             if self.config_path.exists():
                 raw = yaml.safe_load(self.config_path.read_text(encoding="utf-8")) or {}
             else:
                 raw = {}
-            self._cache = self._validate_and_normalize(raw)
+            normalized = self._validate_and_normalize(raw)
+            self._cache = self._apply_overrides(normalized)
             self._last_mtime = mtime
+            self._last_overrides_mtime = ovr_mtime
         return self._cache
+
+    def _apply_overrides(self, base_config: dict[str, Any]) -> dict[str, Any]:
+        """Wendet instanzspezifische Cooldowns und Einstellungen auf die Basiskonfiguration an."""
+        if not self.overrides_path.exists():
+            return base_config
+
+        try:
+            overrides = yaml.safe_load(self.overrides_path.read_text(encoding="utf-8")) or {}
+        except Exception:
+            return base_config
+
+        if not isinstance(overrides, dict):
+            return base_config
+
+        cfg = yaml.safe_load(yaml.safe_dump(base_config))
+
+        # 1. Allgemeine Instanz-Cooldowns
+        gen_ovr = overrides.get("general", {})
+        if isinstance(gen_ovr, dict):
+            gen = cfg.setdefault("general", {})
+            if "global_cooldown_sec" in gen_ovr and gen_ovr["global_cooldown_sec"] is not None:
+                gen["global_cooldown_sec"] = int(gen_ovr["global_cooldown_sec"])
+            if "user_cooldown_sec" in gen_ovr and gen_ovr["user_cooldown_sec"] is not None:
+                gen["user_cooldown_sec"] = int(gen_ovr["user_cooldown_sec"])
+
+        # 2. Trigger-Cooldowns & Enabled-Status
+        trig_ovr = overrides.get("triggers", {})
+        if isinstance(trig_ovr, dict):
+            for t in cfg.get("triggers", []):
+                t_id = t.get("id")
+                if t_id and t_id in trig_ovr:
+                    ovr_entry = trig_ovr[t_id]
+                    if isinstance(ovr_entry, dict):
+                        if "cooldown_sec" in ovr_entry and ovr_entry["cooldown_sec"] is not None:
+                            t["cooldown_sec"] = int(ovr_entry["cooldown_sec"])
+                            t["is_custom_cooldown"] = True
+                        if "enabled" in ovr_entry and ovr_entry["enabled"] is not None:
+                            t["enabled"] = bool(ovr_entry["enabled"])
+                            t["is_custom_enabled"] = True
+        return cfg
 
     def _validate_and_normalize(self, data: dict[str, Any]) -> dict[str, Any]:
         general = data.setdefault("general", {})
@@ -235,15 +293,65 @@ class ConfigManager:
             default_flow_style=False,
         )
         self.config_path.write_text(yaml_text, encoding="utf-8")
-        self._cache = validated
         self._last_mtime = self.config_path.stat().st_mtime
-        return validated
+        self._cache = self._apply_overrides(validated)
+        return self._cache
+
+    def save_streamer_overrides(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """
+        Speichert Instanz-spezifische Cooldowns und Aktivierungs-Status
+        in `overrides.<instance>.yaml`, ohne die globale `config.yaml` zu berühren.
+        """
+        existing: dict[str, Any] = {}
+        if self.overrides_path.exists():
+            try:
+                existing = yaml.safe_load(self.overrides_path.read_text(encoding="utf-8")) or {}
+            except Exception:
+                existing = {}
+
+        if not isinstance(existing, dict):
+            existing = {}
+
+        # 1. Allgemeine Cooldowns
+        gen = payload.get("general", {})
+        if isinstance(gen, dict):
+            existing_gen = existing.setdefault("general", {})
+            if "global_cooldown_sec" in gen and gen["global_cooldown_sec"] is not None:
+                existing_gen["global_cooldown_sec"] = int(gen["global_cooldown_sec"])
+            if "user_cooldown_sec" in gen and gen["user_cooldown_sec"] is not None:
+                existing_gen["user_cooldown_sec"] = int(gen["user_cooldown_sec"])
+
+        # 2. Trigger-spezifische Cooldowns & Enabled Flags
+        trig_list = payload.get("triggers", [])
+        if isinstance(trig_list, list):
+            existing_trigs = existing.setdefault("triggers", {})
+            for t in trig_list:
+                if not isinstance(t, dict) or not t.get("id"):
+                    continue
+                t_id = t["id"]
+                trig_ovr = existing_trigs.setdefault(t_id, {})
+                if "cooldown_sec" in t and t["cooldown_sec"] is not None:
+                    trig_ovr["cooldown_sec"] = int(t["cooldown_sec"])
+                if "enabled" in t and t["enabled"] is not None:
+                    trig_ovr["enabled"] = bool(t["enabled"])
+
+        yaml_text = yaml.safe_dump(
+            existing,
+            allow_unicode=True,
+            sort_keys=False,
+            default_flow_style=False,
+        )
+        self.overrides_path.parent.mkdir(parents=True, exist_ok=True)
+        self.overrides_path.write_text(yaml_text, encoding="utf-8")
+        self._last_overrides_mtime = self.overrides_path.stat().st_mtime
+        return self.get_config(force_reload=True)
 
     def filter_for_role(self, role: str) -> dict[str, Any]:
         """Gibt die Konfiguration entsprechend der Rolle (admin, streamer, mod) gefiltert zurück."""
         cfg = self.get_config()
         # Never expose raw password hashes to frontend
         safe_cfg = yaml.safe_load(yaml.safe_dump(cfg))
+        safe_cfg["instance_id"] = self.instance_id
         if "auth" in safe_cfg:
             safe_cfg["auth"].pop("admin_password_hash", None)
             safe_cfg["auth"].pop("streamer_password_hash", None)

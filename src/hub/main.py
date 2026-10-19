@@ -208,6 +208,7 @@ async def get_config(request: Request) -> dict[str, Any]:
     role = auth_manager.require_roles(request, ["admin", "streamer", "mod"])
     return {
         "role": role,
+        "instance_id": config_manager.instance_id,
         "config": config_manager.filter_for_role(role),
         "sounds_list": sorted(
             [f.name for f in SOUNDS_DIR.iterdir() if f.suffix.lower() in (".mp3", ".wav")]
@@ -226,25 +227,24 @@ async def update_config(request: Request) -> dict[str, Any]:
     body = await request.json()
     current = config_manager.get_config(force_reload=True)
 
-    # Preserve password hashes
+    if role == "streamer":
+        perms = current.get("auth", {}).get("permissions", {}).get("streamer", {})
+        if not perms.get("can_edit_cooldowns", True):
+            raise HTTPException(status_code=403, detail="Cooldown-Bearbeitung nicht gestattet.")
+        config_manager.save_streamer_overrides(body)
+        return {"ok": True, "role": role, "config": config_manager.filter_for_role(role)}
+
+    # Admin: updates global config.yaml
     auth_hashes = {
         "admin_password_hash": current.get("auth", {}).get("admin_password_hash", ""),
         "streamer_password_hash": current.get("auth", {}).get("streamer_password_hash", ""),
         "mod_password_hash": current.get("auth", {}).get("mod_password_hash", ""),
     }
 
-    if role == "streamer":
-        perms = current.get("auth", {}).get("permissions", {}).get("streamer", {})
-        if not perms.get("can_manage_triggers", True) and "triggers" in body:
-            raise HTTPException(status_code=403, detail="Trigger-Bearbeitung nicht gestattet.")
-        # Streamer can edit mod permissions, but not streamer permissions
-        if "auth" in body and "permissions" in body["auth"]:
-            body["auth"]["permissions"]["streamer"] = perms
-
     body.setdefault("auth", {}).update(auth_hashes)
     try:
         saved = config_manager.save_config(body)
-        return {"ok": True, "config": config_manager.filter_for_role(role)}
+        return {"ok": True, "role": role, "config": config_manager.filter_for_role(role)}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 

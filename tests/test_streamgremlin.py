@@ -111,9 +111,48 @@ def run_tests() -> None:
             )
             assert r_wh.status_code == 200 and r_wh.json()["ok"] is True
 
+            # 5. Test Streamer Instance Cooldown Overrides Isolation
+            # Streamer login (password was updated to new_streamer_pw in step 1)
+            r_s_login = client.post("/api/auth/login", json={"password": "new_streamer_pw"})
+            assert r_s_login.status_code == 200 and r_s_login.json()["role"] == "streamer"
+
+            # Streamer adjusts trigger cooldown
+            orig_triggers = r_cfg.json()["config"]["triggers"]
+            target_trigger = orig_triggers[0]
+            target_id = target_trigger["id"]
+            orig_cd = target_trigger.get("cooldown_sec", 5)
+
+            update_payload = {
+                "triggers": [
+                    {"id": target_id, "cooldown_sec": orig_cd + 37, "enabled": True}
+                ]
+            }
+            r_put = client.put("/api/config", json=update_payload)
+            assert r_put.status_code == 200 and r_put.json()["ok"] is True
+
+            # Verify overrides file was created and global config.yaml was NOT modified
+            assert config_manager.overrides_path.exists()
+            import yaml
+            overrides_data = yaml.safe_load(config_manager.overrides_path.read_text(encoding="utf-8"))
+            assert overrides_data["triggers"][target_id]["cooldown_sec"] == orig_cd + 37
+
+            # Base config on disk must still have original cooldown
+            raw_base_yaml = yaml.safe_load(config_manager.config_path.read_text(encoding="utf-8"))
+            base_trigger = next(t for t in raw_base_yaml["triggers"] if t["id"] == target_id)
+            assert base_trigger.get("cooldown_sec", 5) == orig_cd
+
+            # Merged config returned to streamer must show overridden cooldown
+            r_s_cfg = client.get("/api/config")
+            s_trig = next(t for t in r_s_cfg.json()["config"]["triggers"] if t["id"] == target_id)
+            assert s_trig["cooldown_sec"] == orig_cd + 37
+            assert s_trig.get("is_custom_cooldown") is True
+            print("[PASS] Streamer instance cooldown overrides and isolation verified.")
+
         print("[PASS] All FastAPI endpoints, Simulator, Panic, and n8n Webhook verified.")
     finally:
         config_manager.config_path.write_text(orig_cfg_text, encoding="utf-8")
+        if config_manager.overrides_path.exists():
+            config_manager.overrides_path.unlink()
 
 
 if __name__ == "__main__":

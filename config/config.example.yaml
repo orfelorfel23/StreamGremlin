@@ -42,8 +42,8 @@ auth:
   mod_password_hash: ""
   permissions:
     streamer:
-      can_manage_triggers: true
-      can_upload_sounds: true
+      can_manage_triggers: false
+      can_upload_sounds: false
       can_edit_cooldowns: true
       can_configure_twitch: true
       can_manage_mod_permissions: true
