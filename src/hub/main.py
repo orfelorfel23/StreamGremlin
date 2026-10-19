@@ -94,7 +94,10 @@ async def serve_dashboard() -> HTMLResponse:
     index_file = WEB_DIR / "dashboard" / "index.html"
     if not index_file.exists():
         return HTMLResponse("<h1>StreamGremlin Dashboard loading...</h1>")
-    return HTMLResponse(index_file.read_text(encoding="utf-8"))
+    return HTMLResponse(
+        content=index_file.read_text(encoding="utf-8"),
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"},
+    )
 
 
 @app.get("/overlay", response_class=HTMLResponse)
@@ -102,7 +105,10 @@ async def serve_overlay() -> HTMLResponse:
     overlay_file = WEB_DIR / "overlay" / "index.html"
     if not overlay_file.exists():
         return HTMLResponse("<h1>StreamGremlin Overlay loading...</h1>")
-    return HTMLResponse(overlay_file.read_text(encoding="utf-8"))
+    return HTMLResponse(
+        content=overlay_file.read_text(encoding="utf-8"),
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"},
+    )
 
 
 # ==============================================================================
