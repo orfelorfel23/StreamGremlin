@@ -264,6 +264,22 @@ class WebSocketHub:
 
         return {"ok": True, "trigger": trig_name}
 
+    def _should_run_on_overlay(self, action: dict[str, Any], default: bool = True) -> bool:
+        target = str(action.get("target", "both")).lower().strip()
+        if target in ("overlay", "overlay_only", "stream", "stream_only"):
+            return True
+        if target in ("agent", "agent_only", "pc", "pc_only"):
+            return False
+        return default
+
+    def _should_run_on_agent(self, action: dict[str, Any], default: bool = True) -> bool:
+        target = str(action.get("target", "both")).lower().strip()
+        if target in ("agent", "agent_only", "pc", "pc_only"):
+            return True
+        if target in ("overlay", "overlay_only", "stream", "stream_only"):
+            return False
+        return default
+
     async def execute_single_action(
         self,
         action: dict[str, Any],
@@ -278,7 +294,7 @@ class WebSocketHub:
         act_type = action.get("type", "")
         troll_id = f"troll_{secrets.token_hex(4)}"
 
-        # --- 1. AUDIO ACTIONS (Queued in Overlay) ---
+        # --- 1. AUDIO ACTIONS (Queued in Overlay & Agent) ---
         if act_type == "sound":
             if self.master_muted:
                 return
@@ -297,9 +313,10 @@ class WebSocketHub:
                 "volume": max(0.0, min(1.0, vol)),
                 "user": user,
             }
-            await self.broadcast_overlay("sound", payload)
-            # Dual-Sound: Falls Agent lokales Audio unterstützt, auch informieren
-            await self.broadcast_agent({"action": "play_sound", **payload})
+            if self._should_run_on_overlay(action, default=True):
+                await self.broadcast_overlay("sound", payload)
+            if self._should_run_on_agent(action, default=True):
+                await self.broadcast_agent({"action": "play_sound", **payload})
 
         elif act_type == "tts":
             if self.master_muted:
@@ -320,33 +337,36 @@ class WebSocketHub:
                 engine=engine,
             )
             if res.get("ok"):
-                await self.broadcast_overlay(
-                    "tts",
-                    {
-                        "id": troll_id,
-                        "audio_url": res.get("audio_url", ""),
-                        "text": res.get("text", ""),
-                        "user": user,
-                        "voice": voice,
-                        "volume": vol,
-                        "fallback_browser": res.get("fallback_browser", False),
-                    },
-                )
+                payload = {
+                    "id": troll_id,
+                    "audio_url": res.get("audio_url", ""),
+                    "text": res.get("text", ""),
+                    "user": user,
+                    "voice": voice,
+                    "volume": vol,
+                    "fallback_browser": res.get("fallback_browser", False),
+                }
+                if self._should_run_on_overlay(action, default=True):
+                    await self.broadcast_overlay("tts", payload)
+                if self._should_run_on_agent(action, default=True):
+                    await self.broadcast_agent({"action": "tts", **payload})
 
         elif act_type == "stop_audio":
             await self.broadcast_overlay("stop_audio", {})
+            await self.broadcast_agent({"action": "stop_audio"})
 
-        # --- 2. VISUAL OVERLAY ACTIONS ---
+        # --- 2. VISUAL OVERLAY & DUAL-DELIVERY ACTIONS ---
         elif act_type == "bouncing_emotes":
-            await self.broadcast_overlay(
-                "emote",
-                {
-                    "url": action.get("url", ""),
-                    "emote_list": action.get("emote_list", []),
-                    "count": int(action.get("count", 15)),
-                    "is_hype": bool(action.get("is_hype", True)),
-                },
-            )
+            payload = {
+                "url": action.get("url", ""),
+                "emote_list": action.get("emote_list", []),
+                "count": int(action.get("count", 15)),
+                "is_hype": bool(action.get("is_hype", True)),
+            }
+            if self._should_run_on_overlay(action, default=True):
+                await self.broadcast_overlay("emote", payload)
+            if self._should_run_on_agent(action, default=True):
+                await self.broadcast_agent({"action": "emote", **payload})
 
         elif act_type in (
             "flashbang",
@@ -367,20 +387,76 @@ class WebSocketHub:
             "confetti_burst",
             "gif_jumpscare",
         ):
-            await self.broadcast_overlay(
-                "visual",
-                {
-                    "id": troll_id,
-                    "effect": act_type,
-                    "duration_ms": int(action.get("duration_ms", 4000)),
-                    "angle": int(action.get("angle", 18)),
-                    "text": action.get("text", f"Aktion von {user}"),
-                    "image_url": action.get("image_url", "/assets/icon.png"),
+            # Special user rule: censored_bar defaults to overlay only!
+            default_overlay = True
+            default_agent = False if act_type == "censored_bar" else True
+
+            # Rich pool of hilarious troll alerts
+            alert_pools = [
+                {"title": "🎁 500 COMMUNITY SUBS", "msg": f"ElonMusk hat 500 Gift-Subs für {user} verschenkt!"},
+                {"title": "💎 50.000 BITS SPENDE", "msg": "Papaplatte: 'Kauf dir mal Aim! GG!'"},
+                {"title": "🚨 RAID VON MONTANABLACK", "msg": "MontanaBlack raidet mit 42.150 Zuschauern!"},
+                {"title": "⚠️ TWITCH TRUST & SAFETY", "msg": "Dein Partnerstatus steht unter Beobachtung wegen anhaltender Unfähigkeit."},
+                {"title": "👑 NEUER FOLLOWER", "msg": "Finanzamt Hamburg-Nord folgt dir jetzt!"},
+                {"title": "💎 100.000 BITS SPENDE", "msg": "JeffBezos: 'Hier dein Taschengeld für diesen Monat!'"},
+                {"title": "🚨 RAID VON TRYMACS", "msg": "Trymacs raidet mit 28.900 Zuschauern!"},
+                {"title": "🔒 SICHERHEITSHINWEIS", "msg": "BND Cyber-Abteilung: Wir sehen alles. Vor allem deine Missed Shots."},
+            ]
+            chosen_alert = random.choice(alert_pools)
+            alert_title = action.get("title", chosen_alert["title"])
+            alert_msg = action.get("text", chosen_alert["msg"])
+
+            visual_payload = {
+                "id": troll_id,
+                "effect": act_type,
+                "duration_ms": int(action.get("duration_ms", 4000)),
+                "angle": int(action.get("angle", 18)),
+                "title": alert_title,
+                "text": alert_msg,
+                "image_url": action.get("image_url", "/assets/icon.png"),
+                "user": user,
+            }
+
+            if self._should_run_on_overlay(action, default=default_overlay):
+                await self.broadcast_overlay("visual", visual_payload)
+            if self._should_run_on_agent(action, default=default_agent):
+                await self.broadcast_agent({"action": "visual", **visual_payload})
+
+            # Auto-Companion Sounds (if not explicitly disabled)
+            companion_sound_map = {
+                "flashbang": "flashbang.wav",
+                "blackout": "fuse_switch.wav",
+                "tunnel_vision": "heartbeat.wav",
+                "screen_shake": "earthquake_rumble.wav",
+                "screen_tilt": "tilt_creak.wav",
+                "drunk_mode": "bottle_pop.wav",
+                "screen_glitch": "glitch_static.wav",
+                "invert_colors": "dimension_warp.wav",
+                "pixelate": "bitcrush_8bit.wav",
+                "rave_mode": "rave_drop.wav",
+                "mirror_mode": "portal_gun.wav",
+                "fake_bsod": "windows_critical.wav",
+                "censored_bar": "censor_beep.wav",
+                "matrix_rain": "keyboard_clatter.wav",
+                "confetti_burst": "party_horn.wav",
+                "gif_jumpscare": "jumpscare_screech.wav",
+            }
+            comp_sound = companion_sound_map.get(act_type)
+            if comp_sound and not action.get("mute_sound", False) and not self.master_muted:
+                sound_payload = {
+                    "id": f"snd_{secrets.token_hex(4)}",
+                    "sound_url": f"/sounds/{comp_sound}",
+                    "filename": comp_sound,
+                    "volume": float(action.get("sound_volume", 0.85)),
                     "user": user,
-                },
-            )
+                }
+                if self._should_run_on_overlay(action, default=default_overlay):
+                    await self.broadcast_overlay("sound", sound_payload)
+                if self._should_run_on_agent(action, default=default_agent):
+                    await self.broadcast_agent({"action": "play_sound", **sound_payload})
 
         elif act_type == "troll_hud":
+            # User decision: Countdown bar is ONLY on the stream!
             if cfg.get("general", {}).get("troll_hud_enabled", True):
                 await self.broadcast_overlay(
                     "troll_hud",
@@ -400,70 +476,95 @@ class WebSocketHub:
                 {"label": "💣 Flashbang Granate!", "effect": "flashbang"},
                 {"label": "🍺 5 Promille Modus (10s)", "effect": "drunk_mode"},
                 {"label": "🔫 Waffen-Roulette (6s)", "effect": "weapon_roulette"},
-                {"label": "🍀 Glück gehabt! Nichts passiert", "effect": "none"},
+                {"label": "🍀 Niete! Nichts passiert", "effect": "none"},
                 {"label": "🕺 Rave Party & Konfetti!", "effect": "rave_mode"},
+                {"label": "🐌 Schneckentempo Maus (8s)", "effect": "mouse_sensitivity", "mode": "snail"},
+                {"label": "🚀 Quake-Pro Maus (8s)", "effect": "mouse_sensitivity", "mode": "quake"},
+                {"label": "🐰 Häschen-Hüpfen (8s)", "effect": "jump_frenzy"},
+                {"label": "❌ Niete! Punkte verloren", "effect": "none"},
             ]
             winner_idx = random.randrange(len(outcomes))
             winner = outcomes[winner_idx]
-            await self.broadcast_overlay(
-                "minigame",
-                {
-                    "game": "wheel_of_fortune",
-                    "outcomes": outcomes,
-                    "winner_index": winner_idx,
-                    "winner": winner,
-                    "user": user,
-                    "duration_ms": int(action.get("duration_ms", 5500)),
-                },
-            )
+            wheel_payload = {
+                "game": "wheel_of_fortune",
+                "outcomes": outcomes,
+                "winner_index": winner_idx,
+                "winner": winner,
+                "user": user,
+                "duration_ms": int(action.get("duration_ms", 5500)),
+            }
+            if self._should_run_on_overlay(action, default=True):
+                await self.broadcast_overlay("minigame", wheel_payload)
+            if self._should_run_on_agent(action, default=True):
+                await self.broadcast_agent({"action": "minigame", **wheel_payload})
+
             # Trigger the winning outcome after wheel spin finishes (4.2s)
             async def _delayed_outcome() -> None:
                 await asyncio.sleep(4.2)
                 eff = winner.get("effect")
-                if eff == "invert_keys":
+                if not eff or eff == "none":
+                    return
+                if eff in ("invert_keys", "invert_ws", "invert_ad"):
                     await self.execute_single_action(
-                        {"type": "invert_keys", "pairs": [["w", "s"], ["a", "d"]], "duration_sec": 8},
+                        {"type": eff, "duration_sec": 8, "title": winner["label"]},
                         user=user,
                     )
-                    await self.execute_single_action(
-                        {"type": "troll_hud", "title": winner["label"], "duration_sec": 8},
-                        user=user,
-                    )
-                elif eff in ("flashbang", "drunk_mode", "rave_mode"):
+                elif eff in ("flashbang", "drunk_mode", "rave_mode", "pixelate", "screen_shake"):
                     await self.execute_single_action(
                         {"type": eff, "duration_ms": 6000}, user=user
                     )
-                elif eff == "weapon_roulette":
+                elif eff in ("weapon_roulette", "jump_frenzy", "crouch_spam", "reload_addiction"):
                     await self.execute_single_action(
-                        {"type": "weapon_roulette", "duration_sec": 6}, user=user
+                        {"type": eff, "duration_sec": 8, "title": winner["label"]}, user=user
+                    )
+                elif eff == "mouse_sensitivity":
+                    await self.execute_single_action(
+                        {"type": "mouse_sensitivity", "mode": winner.get("mode", "snail"), "duration_sec": 8, "title": winner["label"]},
+                        user=user,
                     )
 
             asyncio.create_task(_delayed_outcome())
 
         elif act_type == "timebomb":
+            bomb_mode = str(action.get("mode", "spam")).lower()
             defuse_word = str(action.get("defuse_word", "cut")).lower().strip()
             req_count = int(action.get("required_count", 8))
             duration_sec = int(action.get("duration_sec", 20))
             bomb_id = f"bomb_{secrets.token_hex(4)}"
+
+            # Wire roulette setup (Rot, Blau, Grün)
+            wire_colors = ["rot", "blau", "grün"]
+            correct_wire = random.choice(wire_colors)
+            remaining_wires = [w for w in wire_colors if w != correct_wire]
+            exploding_wire = remaining_wires[0]
+            penalty_wire = remaining_wires[1]
+
             self.active_timebomb = {
                 "id": bomb_id,
+                "mode": bomb_mode,
                 "defuse_word": defuse_word,
                 "required_count": req_count,
                 "current_count": 0,
+                "correct_wire": correct_wire,
+                "exploding_wire": exploding_wire,
+                "penalty_wire": penalty_wire,
                 "expires_at": time.time() + duration_sec,
             }
-            await self.broadcast_overlay(
-                "minigame",
-                {
-                    "game": "timebomb",
-                    "action": "start",
-                    "bomb_id": bomb_id,
-                    "defuse_word": defuse_word,
-                    "required_count": req_count,
-                    "duration_sec": duration_sec,
-                    "user": user,
-                },
-            )
+
+            bomb_payload = {
+                "game": "timebomb",
+                "action": "start",
+                "bomb_id": bomb_id,
+                "mode": bomb_mode,
+                "defuse_word": defuse_word,
+                "required_count": req_count,
+                "duration_sec": duration_sec,
+                "user": user,
+            }
+            if self._should_run_on_overlay(action, default=True):
+                await self.broadcast_overlay("minigame", bomb_payload)
+            if self._should_run_on_agent(action, default=True):
+                await self.broadcast_agent({"action": "minigame", **bomb_payload})
 
             async def _bomb_timer() -> None:
                 await asyncio.sleep(duration_sec)
@@ -472,40 +573,106 @@ class WebSocketHub:
                     await self.broadcast_overlay(
                         "minigame", {"game": "timebomb", "action": "explode", "bomb_id": bomb_id}
                     )
+                    await self.broadcast_agent(
+                        {"action": "minigame", "game": "timebomb", "sub_action": "explode", "bomb_id": bomb_id}
+                    )
                     await self.execute_single_action({"type": "flashbang", "duration_ms": 3500}, user="Zeitbombe")
                     await self.execute_single_action({"type": "screen_shake", "duration_ms": 3500}, user="Zeitbombe")
-                    await self.execute_single_action({"type": "sound", "pool": ["flashbang.wav"]}, user="Zeitbombe")
 
             asyncio.create_task(_bomb_timer())
 
-        # --- 4. GAMING-PC AGENT INPUT TROLLS (Overlapping!) ---
+        # --- 4. GAMING-PC AGENT INPUT TROLLS (100% Anti-Cheat Safe) ---
         elif act_type in (
             "invert_keys",
+            "invert_ws",
+            "invert_ad",
             "jam_key",
             "disable_key",
             "weapon_roulette",
             "reload_addiction",
             "jump_frenzy",
-            "flashlight_rave",
             "crouch_spam",
             "mouse_sensitivity",
             "mouse_invert",
         ):
+            dur_sec = int(action.get("duration_sec", 10))
+
+            # Specific pairs for W/S vs A/D
+            if act_type == "invert_ws":
+                pairs = [["w", "s"]]
+                hud_title = "W/S Invertiert"
+            elif act_type == "invert_ad":
+                pairs = [["a", "d"]]
+                hud_title = "A/D Invertiert"
+            elif act_type == "invert_keys":
+                pairs = action.get("pairs", [["w", "s"], ["a", "d"]])
+                hud_title = "WASD Invertiert"
+            else:
+                pairs = action.get("pairs", [["w", "s"], ["a", "d"]])
+                hud_title = action.get("title", act_type.replace("_", " ").title())
+
             agent_payload = {
                 "action": act_type,
                 "troll_id": troll_id,
                 "user": user,
-                "duration_sec": int(action.get("duration_sec", 10)),
-                "pairs": action.get("pairs", [["w", "s"], ["a", "d"]]),
-                "key": action.get("key", "space"),
-                "keys": action.get("keys", ["1", "2", "3"]),
-                "mode": action.get("mode", "hold"),
-                "count": int(action.get("count", 3)),
+                "duration_sec": dur_sec,
+                "pairs": pairs,
+                "key": action.get("key", "w"),
+                "keys": action.get("keys", ["1", "2", "3", "4"]),
+                "mode": action.get("mode", "snail" if act_type == "mouse_sensitivity" else "y"),
                 "factor": float(action.get("factor", 0.3)),
             }
+            # Send hardware troll to Gaming-PC Agent
             await self.broadcast_agent(agent_payload)
 
-        # --- 5. SMART HOME / HOME ASSISTANT ---
+            # User decision: Countdown bar is ONLY on the stream!
+            if cfg.get("general", {}).get("troll_hud_enabled", True):
+                await self.broadcast_overlay(
+                    "troll_hud",
+                    {
+                        "action": "start",
+                        "troll_id": troll_id,
+                        "title": action.get("title", hud_title),
+                        "user": user,
+                        "duration_sec": dur_sec,
+                    },
+                )
+
+            # Audio decisions:
+            # - invert_keys / ws / ad: evil_laugh.wav
+            # - jam_key: key_jam_click.wav
+            # - disable_key: access_denied_buzzer.wav
+            # - jump_frenzy: boing.wav
+            # - mouse_sensitivity: snail_slurp.wav (snail) vs f1_whoosh.wav (quake)
+            # - mouse_invert: whip_whistle.wav
+            # - weapon_roulette, reload_addiction, crouch_spam: KEIN SOUND
+            troll_sound_map = {
+                "invert_keys": "evil_laugh.wav",
+                "invert_ws": "evil_laugh.wav",
+                "invert_ad": "evil_laugh.wav",
+                "jam_key": "key_jam_click.wav",
+                "disable_key": "access_denied_buzzer.wav",
+                "jump_frenzy": "boing.wav",
+                "mouse_invert": "whip_whistle.wav",
+            }
+            if act_type == "mouse_sensitivity":
+                mode = str(action.get("mode", "snail")).lower()
+                chosen_snd = "snail_slurp.wav" if mode == "snail" else "f1_whoosh.wav"
+            else:
+                chosen_snd = troll_sound_map.get(act_type)
+
+            if chosen_snd and not self.master_muted:
+                sound_payload = {
+                    "id": f"snd_{secrets.token_hex(4)}",
+                    "sound_url": f"/sounds/{chosen_snd}",
+                    "filename": chosen_snd,
+                    "volume": float(action.get("sound_volume", 0.85)),
+                    "user": user,
+                }
+                await self.broadcast_overlay("sound", sound_payload)
+                await self.broadcast_agent({"action": "play_sound", **sound_payload})
+
+        # --- 5. SMART HOME / HOME ASSISTANT (Kein Sound) ---
         elif act_type in ("smart_home", "ha_action"):
             await self.automation.execute_smart_home_action(action, user=user)
 
@@ -528,55 +695,98 @@ class WebSocketHub:
         cfg = self.cm.get_config()
         general = cfg.get("general", {})
 
-        # 1. Active Timebomb Defuse Check
+        # 1. Active Timebomb Defuse Check (Both Spam and Wire modes)
         if self.active_timebomb:
-            word = self.active_timebomb["defuse_word"]
-            if word in message.lower().split():
-                self.active_timebomb["current_count"] += 1
-                cur = self.active_timebomb["current_count"]
-                req = self.active_timebomb["required_count"]
-                await self.broadcast_overlay(
-                    "minigame",
-                    {
-                        "game": "timebomb",
-                        "action": "progress",
-                        "current_count": cur,
-                        "required_count": req,
-                        "user": user,
-                    },
-                )
-                if cur >= req:
-                    self.active_timebomb = None
+            tb = self.active_timebomb
+            bomb_mode = tb.get("mode", "spam")
+            msg_lower = message.lower().strip()
+
+            if bomb_mode == "wire":
+                # Chat votes wire: "!cut rot", "!cut blau", "!cut grün"
+                for wire in ("rot", "blau", "grün"):
+                    if wire in msg_lower and ("cut" in msg_lower or "schneide" in msg_lower):
+                        if wire == tb["correct_wire"]:
+                            # Defused!
+                            self.active_timebomb = None
+                            await self.broadcast_overlay(
+                                "minigame", {"game": "timebomb", "action": "defused", "wire": wire, "user": user}
+                            )
+                            await self.broadcast_agent(
+                                {"action": "minigame", "game": "timebomb", "sub_action": "defused", "wire": wire, "user": user}
+                            )
+                            await self.execute_single_action(
+                                {"type": "confetti_burst", "duration_ms": 4000}, user=user
+                            )
+                        elif wire == tb["exploding_wire"]:
+                            # Instant explosion!
+                            self.active_timebomb = None
+                            await self.broadcast_overlay(
+                                "minigame", {"game": "timebomb", "action": "explode", "wire": wire, "user": user}
+                            )
+                            await self.broadcast_agent(
+                                {"action": "minigame", "game": "timebomb", "sub_action": "explode", "wire": wire, "user": user}
+                            )
+                            await self.execute_single_action({"type": "flashbang", "duration_ms": 3500}, user="Zeitbombe")
+                            await self.execute_single_action({"type": "screen_shake", "duration_ms": 3500}, user="Zeitbombe")
+                        elif wire == tb["penalty_wire"]:
+                            # Halve remaining time!
+                            rem = max(3.0, (tb["expires_at"] - time.time()) / 2.0)
+                            tb["expires_at"] = time.time() + rem
+                            await self.broadcast_overlay(
+                                "minigame", {"game": "timebomb", "action": "penalty", "wire": wire, "seconds_left": int(rem), "user": user}
+                            )
+                        break
+            else:
+                # Spam-cut mode
+                word = tb["defuse_word"]
+                if word in msg_lower.split():
+                    tb["current_count"] += 1
+                    cur = tb["current_count"]
+                    req = tb["required_count"]
                     await self.broadcast_overlay(
                         "minigame",
-                        {"game": "timebomb", "action": "defused", "user": user},
+                        {
+                            "game": "timebomb",
+                            "action": "progress",
+                            "current_count": cur,
+                            "required_count": req,
+                            "user": user,
+                        },
                     )
-                    await self.execute_single_action(
-                        {"type": "confetti_burst", "duration_ms": 3500}, user=user
-                    )
+                    if cur >= req:
+                        self.active_timebomb = None
+                        await self.broadcast_overlay(
+                            "minigame",
+                            {"game": "timebomb", "action": "defused", "user": user},
+                        )
+                        await self.broadcast_agent(
+                            {"action": "minigame", "game": "timebomb", "sub_action": "defused", "user": user}
+                        )
+                        await self.execute_single_action(
+                            {"type": "confetti_burst", "duration_ms": 3500}, user=user
+                        )
 
-        # 2. Individual Chat Emote Drop
+        # 2. Individual Chat Emote Drop (Dual-Mode: Stream + PC)
         if general.get("chat_emotes_auto_bounce", True) and emote_urls:
             for url in emote_urls[:8]:
-                await self.broadcast_overlay(
-                    "emote",
-                    {"url": url, "count": 1, "is_hype": False},
-                )
+                emote_payload = {"url": url, "count": 1, "is_hype": False}
+                await self.broadcast_overlay("emote", emote_payload)
+                await self.broadcast_agent({"action": "emote", **emote_payload})
 
-        # 3. Chat Velocity Spike Detection
+        # 3. Chat Velocity Spike Detection (Dual-Mode: Stream + PC)
         now = time.time()
         self._chat_timestamps.append(now)
         recent_5s = [t for t in self._chat_timestamps if now - t <= 5.0]
         threshold = int(general.get("chat_velocity_threshold", 15))
         if len(recent_5s) >= threshold and (now - self._last_velocity_hype > 20.0):
             self._last_velocity_hype = now
-            await self.broadcast_overlay(
-                "emote",
-                {"url": "", "count": 35, "is_hype": True},
-            )
+            hype_payload = {"url": "", "count": 35, "is_hype": True}
+            await self.broadcast_overlay("emote", hype_payload)
+            await self.broadcast_agent({"action": "emote", **hype_payload})
             await self.log_event(
                 event_type="chat_velocity",
                 title="Chat-Hype erkannt",
                 user="Chat",
                 details=f"{len(recent_5s)} Nachrichten in 5s",
             )
+

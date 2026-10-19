@@ -712,12 +712,19 @@
       } else if (eff === 'confetti_burst') {
         spawnConfetti(dur);
       } else if (eff === 'fake_alert') {
-        showBanner('🎁 MEGA SUB-BOMBE!', payload.text || 'Elon Musk hat 500 Gift-Subs im Kanal verschenkt!', dur);
+        showBanner(payload.title || '🎁 MEGA SUB-BOMBE!', payload.text || 'Elon Musk hat 500 Gift-Subs im Kanal verschenkt!', dur);
         spawnConfetti(dur);
       } else if (eff === 'gif_jumpscare') {
         const box = document.getElementById('jumpscare-box');
         const img = document.getElementById('jumpscare-img');
-        img.src = payload.image_url || '/assets/icon.png';
+        const jumpscarePool = [
+          '/assets/icon.png',
+          'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOHp1eHN3YmI2aHRycTZtcWprNWtveWFyZ2R5anB0ZWR5enVyNXl3ZSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/14ut8PhnIwzros/giphy.gif',
+          'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcDFvZWh1cHNndjBjc2txeG55aWhpOHpjaDFoM3g1dmV3YnhpdWhnNyZlcD12MV9naWZzX3NlYXJjaCZjdD1n/Nm8ZPAGOwZUQM/giphy.gif'
+        ];
+        img.src = payload.image_url && payload.image_url !== '/assets/icon.png' 
+          ? payload.image_url 
+          : jumpscarePool[Math.floor(Math.random() * jumpscarePool.length)];
         box.style.display = 'block';
         requestAnimationFrame(() => {
           box.style.transform = 'translate(-50%, -50%) scale(1.25)';
@@ -787,11 +794,19 @@
         runWheelOfFortune(payload);
       } else if (payload.game === 'timebomb') {
         const widget = document.getElementById('timebomb-widget');
+        const instrEl = document.querySelector('.bomb-instr');
+
         if (payload.action === 'start') {
           widget.style.display = 'block';
-          document.getElementById('bomb-word').textContent = payload.defuse_word;
-          document.getElementById('bomb-count').textContent = `0 / ${payload.required_count}`;
-          document.getElementById('bomb-bar').style.width = '0%';
+          if (payload.mode === 'wire') {
+            instrEl.innerHTML = 'Draht kappen: <span class="bomb-code">!cut rot</span> | <span class="bomb-code" style="background:#38bdf8">!cut blau</span> | <span class="bomb-code" style="background:#22c55e">!cut grün</span>';
+            document.getElementById('bomb-count').textContent = 'Draht-Roulette aktiv!';
+            document.getElementById('bomb-bar').style.width = '100%';
+          } else {
+            instrEl.innerHTML = `Schreibt <span class="bomb-code" id="bomb-word">${payload.defuse_word || 'cut'}</span> in den Chat zum Entschärfen!`;
+            document.getElementById('bomb-count').textContent = `0 / ${payload.required_count}`;
+            document.getElementById('bomb-bar').style.width = '0%';
+          }
           let rem = payload.duration_sec || 20;
           document.getElementById('bomb-timer').textContent = `${rem}s`;
           if (bombInterval) clearInterval(bombInterval);
@@ -804,10 +819,12 @@
           const pct = Math.min(100, (payload.current_count / payload.required_count) * 100);
           document.getElementById('bomb-bar').style.width = `${pct}%`;
           document.getElementById('bomb-count').textContent = `${payload.current_count} / ${payload.required_count}`;
+        } else if (payload.action === 'penalty') {
+          showBanner('⚠️ FALSCHER DRAHT!', `Der Timer wurde auf ${payload.seconds_left}s halbiert!`, 3000);
         } else if (payload.action === 'defused') {
           if (bombInterval) clearInterval(bombInterval);
           widget.style.display = 'none';
-          showBanner('🛡️ BOMBE ENTSCHÄRFT!', `Der Chat hat die Zeitbombe rechtzeitig entschärft!`, 4000);
+          showBanner('🛡️ BOMBE ENTSCHÄRFT!', `@${payload.user || 'Chat'} hat die Bombe rechtzeitig entschärft!`, 4000);
         } else if (payload.action === 'explode') {
           if (bombInterval) clearInterval(bombInterval);
           widget.style.display = 'none';

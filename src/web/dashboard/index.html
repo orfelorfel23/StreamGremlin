@@ -590,64 +590,124 @@
                 <!-- Category: Overlay -->
                 <div class="pad-grid cat-group" id="cat-overlay">
                   <button class="pad-btn" onclick="simDirect({type:'flashbang', duration_ms:3000})">
-                    <span class="pad-type">Shader</span>
+                    <span class="pad-type">Dual</span>
                     <span class="pad-name">Flashbang</span>
                   </button>
+                  <button class="pad-btn" onclick="simDirect({type:'blackout', duration_ms:4500})">
+                    <span class="pad-type">Dual</span>
+                    <span class="pad-name">Blackout (Licht aus)</span>
+                  </button>
+                  <button class="pad-btn" onclick="simDirect({type:'tunnel_vision', duration_ms:7000})">
+                    <span class="pad-type">Dual</span>
+                    <span class="pad-name">Tunnelblick</span>
+                  </button>
                   <button class="pad-btn" onclick="simDirect({type:'screen_shake', duration_ms:3500})">
-                    <span class="pad-type">Shader</span>
+                    <span class="pad-type">Dual</span>
                     <span class="pad-name">Screen Shake</span>
                   </button>
                   <button class="pad-btn" onclick="simDirect({type:'screen_tilt', angle:180, duration_ms:6000})">
-                    <span class="pad-type">Shader</span>
-                    <span class="pad-name">Tilt 180°</span>
+                    <span class="pad-type">Dual</span>
+                    <span class="pad-name">Tilt 180° Kopfstand</span>
                   </button>
                   <button class="pad-btn" onclick="simDirect({type:'drunk_mode', duration_ms:8000})">
-                    <span class="pad-type">Shader</span>
-                    <span class="pad-name">Drunk Mode</span>
+                    <span class="pad-type">Dual</span>
+                    <span class="pad-name">5 Promille Modus</span>
+                  </button>
+                  <button class="pad-btn" onclick="simDirect({type:'screen_glitch', duration_ms:4000})">
+                    <span class="pad-type">Dual</span>
+                    <span class="pad-name">Cyber Glitch</span>
+                  </button>
+                  <button class="pad-btn" onclick="simDirect({type:'invert_colors', duration_ms:8000})">
+                    <span class="pad-type">Dual</span>
+                    <span class="pad-name">Negativ (Invert)</span>
+                  </button>
+                  <button class="pad-btn" onclick="simDirect({type:'mirror_mode', duration_ms:8000})">
+                    <span class="pad-type">Dual</span>
+                    <span class="pad-name">Spiegel (Portal Gun)</span>
                   </button>
                   <button class="pad-btn" onclick="simDirect({type:'fake_bsod', duration_ms:4000})">
-                    <span class="pad-type">Overlay</span>
+                    <span class="pad-type">Dual</span>
                     <span class="pad-name">Fake Bluescreen</span>
                   </button>
-                  <button class="pad-btn" onclick="simDirect({type:'censored_bar', duration_ms:6000})">
-                    <span class="pad-type">Overlay</span>
+                  <button class="pad-btn" onclick="simDirect({type:'censored_bar', target:'overlay', duration_ms:5000})">
+                    <span class="pad-type">Nur Stream</span>
                     <span class="pad-name">Censored Balken</span>
                   </button>
                   <button class="pad-btn" onclick="simDirect({type:'matrix_rain', duration_ms:7000})">
-                    <span class="pad-type">Canvas</span>
+                    <span class="pad-type">Dual</span>
                     <span class="pad-name">Matrix Rain</span>
                   </button>
                   <button class="pad-btn" onclick="simDirect({type:'rave_mode', duration_ms:5000})">
-                    <span class="pad-type">Effekt</span>
-                    <span class="pad-name">Disco Strobe</span>
+                    <span class="pad-type">Dual</span>
+                    <span class="pad-name">Disco Strobe Rave</span>
                   </button>
                   <button class="pad-btn" onclick="simDirect({type:'pixelate', duration_ms:6000})">
-                    <span class="pad-type">Shader</span>
-                    <span class="pad-name">Pixelate</span>
+                    <span class="pad-type">Dual</span>
+                    <span class="pad-name">8-Bit Pixelate</span>
                   </button>
-                  <button class="pad-btn" onclick="simDirect({type:'confetti_burst', duration_ms:3000})">
+                  <button class="pad-btn" onclick="simDirect({type:'confetti_burst', duration_ms:4000})">
                     <span class="pad-type">Partikel</span>
-                    <span class="pad-name">Konfetti</span>
+                    <span class="pad-name">Konfetti Explosion</span>
+                  </button>
+                  <button class="pad-btn" onclick="simDirect({type:'gif_jumpscare', duration_ms:2000})">
+                    <span class="pad-type">Dual</span>
+                    <span class="pad-name">Random Jumpscare</span>
+                  </button>
+                  <button class="pad-btn" onclick="simDirect({type:'fake_alert', duration_ms:5000})">
+                    <span class="pad-type">Alarm</span>
+                    <span class="pad-name">Fake Donation Alert</span>
                   </button>
                 </div>
 
                 <!-- Category: PC Agent -->
                 <div class="pad-grid cat-group" id="cat-agent" style="display:none;">
+                  <button class="pad-btn" onclick="simDirect({type:'invert_ws', duration_sec:8})">
+                    <span class="pad-type">Agent</span>
+                    <span class="pad-name">Invert W/S (8s)</span>
+                  </button>
+                  <button class="pad-btn" onclick="simDirect({type:'invert_ad', duration_sec:8})">
+                    <span class="pad-type">Agent</span>
+                    <span class="pad-name">Invert A/D (8s)</span>
+                  </button>
                   <button class="pad-btn" onclick="simDirect({type:'invert_keys', pairs:[['w','s'],['a','d']], duration_sec:10})">
                     <span class="pad-type">Agent</span>
                     <span class="pad-name">Invert WASD (10s)</span>
                   </button>
-                  <button class="pad-btn" onclick="simDirect({type:'jam_key', key:'w', duration_sec:5})">
+                  <button class="pad-btn" onclick="simDirect({type:'jam_key', key:'w', duration_sec:7})">
                     <span class="pad-type">Agent</span>
-                    <span class="pad-name">Jam Key (W 5s)</span>
+                    <span class="pad-name">Jam Key (W Sprint)</span>
                   </button>
-                  <button class="pad-btn" onclick="simDirect({type:'weapon_roulette', keys:['1','2','3'], duration_sec:6})">
+                  <button class="pad-btn" onclick="simDirect({type:'disable_key', key:'r', duration_sec:10})">
                     <span class="pad-type">Agent</span>
+                    <span class="pad-name">Disable Key (R Sperre)</span>
+                  </button>
+                  <button class="pad-btn" onclick="simDirect({type:'weapon_roulette', keys:['1','2','3','4'], duration_sec:7})">
+                    <span class="pad-type">Lautlos</span>
                     <span class="pad-name">Waffen-Roulette</span>
                   </button>
-                  <button class="pad-btn" onclick="simDirect({type:'crouch_spam', key:'ctrl', duration_sec:5})">
-                    <span class="pad-type">Agent</span>
-                    <span class="pad-name">Crouch Spam (5s)</span>
+                  <button class="pad-btn" onclick="simDirect({type:'reload_addiction', duration_sec:8})">
+                    <span class="pad-type">Lautlos</span>
+                    <span class="pad-name">Nachlade-Zwang (R)</span>
+                  </button>
+                  <button class="pad-btn" onclick="simDirect({type:'jump_frenzy', duration_sec:8})">
+                    <span class="pad-type">Boing</span>
+                    <span class="pad-name">Häschen-Hüpfen</span>
+                  </button>
+                  <button class="pad-btn" onclick="simDirect({type:'crouch_spam', duration_sec:8})">
+                    <span class="pad-type">Lautlos</span>
+                    <span class="pad-name">Crouch Teabagging</span>
+                  </button>
+                  <button class="pad-btn" onclick="simDirect({type:'mouse_sensitivity', mode:'snail', duration_sec:8})">
+                    <span class="pad-type">Schnecke</span>
+                    <span class="pad-name">Maus Schneckentempo</span>
+                  </button>
+                  <button class="pad-btn" onclick="simDirect({type:'mouse_sensitivity', mode:'quake', duration_sec:8})">
+                    <span class="pad-type">F1-Whoosh</span>
+                    <span class="pad-name">Maus Quake-Pro</span>
+                  </button>
+                  <button class="pad-btn" onclick="simDirect({type:'mouse_invert', mode:'y', duration_sec:8})">
+                    <span class="pad-type">Whip-Whistle</span>
+                    <span class="pad-name">Maus Invertieren (Y)</span>
                   </button>
                 </div>
 
@@ -655,14 +715,18 @@
                 <div class="pad-grid cat-group" id="cat-minigames" style="display:none;">
                   <button class="pad-btn" onclick="simDirect({type:'wheel_of_fortune', duration_ms:5500})">
                     <span class="pad-type">Minigame</span>
-                    <span class="pad-name">Glücksrad</span>
+                    <span class="pad-name">Glücksrad (mit Nieten)</span>
                   </button>
-                  <button class="pad-btn" onclick="simDirect({type:'timebomb', defuse_word:'cut', required_count:5, duration_sec:20})">
+                  <button class="pad-btn" onclick="simDirect({type:'timebomb', mode:'spam', defuse_word:'cut', required_count:8, duration_sec:25})">
                     <span class="pad-type">Minigame</span>
-                    <span class="pad-name">Zeitbombe</span>
+                    <span class="pad-name">Zeitbombe (Spam-Cut)</span>
+                  </button>
+                  <button class="pad-btn" onclick="simDirect({type:'timebomb', mode:'wire', duration_sec:25})">
+                    <span class="pad-type">Minigame</span>
+                    <span class="pad-name">Zeitbombe (Draht-Roulette)</span>
                   </button>
                   <button class="pad-btn" onclick="simDirect({type:'bouncing_emotes', count:25, is_hype:true})">
-                    <span class="pad-type">Events</span>
+                    <span class="pad-type">Dual-Physik</span>
                     <span class="pad-name">Emote-Regen (25x)</span>
                   </button>
                 </div>
@@ -1031,26 +1095,41 @@
             <div class="form-label" style="margin-bottom:0;">Aktionen & Effekte:</div>
             <span id="trig-actions-lock-badge" class="badge" style="display:none; background:var(--bg-elevated); border:1px solid var(--border); color:var(--text-muted); font-size:10px;">🔒 Zentral vom Admin verwaltet</span>
           </div>
+          <div class="form-row">
+            <label class="form-label">Zielort / Wo ausführen? (Dual-Mode)</label>
+            <select id="trig-target">
+              <option value="both">Beide (OBS Stream + Gaming-PC)</option>
+              <option value="overlay">Nur im Stream (OBS)</option>
+              <option value="agent">Nur am Gaming-PC</option>
+            </select>
+          </div>
           <div class="grid-equal">
             <div class="form-row">
               <label class="form-label">Sound-Dateien (Zufallspool, Kommagetrennt)</label>
               <input type="text" id="trig-sounds" placeholder="z.B. bonk.wav, flashbang.wav" />
             </div>
             <div class="form-row">
-              <label class="form-label">Visueller Overlay-Effekt</label>
+              <label class="form-label">Visueller Effekt</label>
               <select id="trig-visual">
                 <option value="">-- Keiner --</option>
+                <option value="flashbang">Flashbang (Blendgranate)</option>
+                <option value="blackout">Stromausfall (Blackout)</option>
+                <option value="tunnel_vision">Tunnelblick</option>
+                <option value="screen_shake">Screen Shake (Erdbeben)</option>
+                <option value="screen_tilt">Screen Tilt (180° Kopfstand)</option>
+                <option value="drunk_mode">5 Promille Modus</option>
+                <option value="screen_glitch">Cyber Glitch</option>
+                <option value="invert_colors">Negativ (Farben invertieren)</option>
+                <option value="mirror_mode">Spiegel-Modus (Portal Gun)</option>
+                <option value="pixelate">8-Bit Pixelate</option>
+                <option value="fake_bsod">Fake Windows Bluescreen</option>
+                <option value="censored_bar">Censored Balken (Nur Stream)</option>
+                <option value="matrix_rain">Matrix Code Regen</option>
+                <option value="rave_mode">Disco Strobe Rave</option>
+                <option value="confetti_burst">Konfetti Explosion</option>
+                <option value="gif_jumpscare">Random Jumpscare</option>
+                <option value="fake_alert">Fake Donation Alert</option>
                 <option value="bouncing_emotes">Bouncing Emotes</option>
-                <option value="flashbang">Flashbang</option>
-                <option value="screen_shake">Screen Shake</option>
-                <option value="screen_tilt">Screen Tilt</option>
-                <option value="drunk_mode">Drunk Mode</option>
-                <option value="fake_bsod">Fake Bluescreen</option>
-                <option value="censored_bar">Censored Balken</option>
-                <option value="rave_mode">Disco Strobe</option>
-                <option value="matrix_rain">Matrix Rain</option>
-                <option value="pixelate">Pixelate</option>
-                <option value="confetti_burst">Konfetti</option>
                 <option value="wheel_of_fortune">Minigame: Glücksrad</option>
                 <option value="timebomb">Minigame: Zeitbombe</option>
               </select>
@@ -1059,15 +1138,21 @@
 
           <div class="grid-equal">
             <div class="form-row">
-              <label class="form-label">PC-Steuerung / Smart Home</label>
+              <label class="form-label">PC-Steuerung / Hardware Troll</label>
               <select id="trig-agent">
                 <option value="">-- Keiner --</option>
-                <option value="invert_keys">Tasten invertieren (WASD)</option>
-                <option value="jam_key">Taste gedrückt halten</option>
-                <option value="disable_key">Taste temporär deaktivieren</option>
-                <option value="weapon_roulette">Waffen-Roulette (1-2-3)</option>
-                <option value="crouch_spam">Crouch Spam</option>
-                <option value="smart_home">Smart Home (Licht rot)</option>
+                <option value="invert_ws">W/S invertieren (Vor/Zurück)</option>
+                <option value="invert_ad">A/D invertieren (Links/Rechts)</option>
+                <option value="invert_keys">WASD komplett invertieren</option>
+                <option value="jam_key">Taste verklemmt (z.B. W Sprint)</option>
+                <option value="disable_key">Taste sperren (z.B. R Nachladen)</option>
+                <option value="weapon_roulette">Waffen-Roulette (1-4 durchwechseln)</option>
+                <option value="reload_addiction">Nachlade-Zwang (R)</option>
+                <option value="jump_frenzy">Häschen-Hüpfen (Space)</option>
+                <option value="crouch_spam">Crouch Teabagging (Strg)</option>
+                <option value="mouse_sensitivity">Mausempfindlichkeit (Schnecke vs Quake)</option>
+                <option value="mouse_invert">Maus-Invertierung (Whip-Whistle)</option>
+                <option value="smart_home">Smart Home (Raumlicht rot)</option>
               </select>
             </div>
             <div class="form-row">
@@ -1517,9 +1602,17 @@
       let visual = '';
       let agent = '';
       let duration = 10;
+      let target = 'both';
+
       (t.actions || []).forEach(a => {
-        if (a.type === 'sound') sounds = a.pool || [];
-        else if (['invert_keys', 'jam_key', 'disable_key', 'weapon_roulette', 'crouch_spam', 'smart_home'].includes(a.type)) {
+        if (a.target) target = a.target;
+        if (a.type === 'sound') {
+          sounds = a.pool || [];
+        } else if ([
+          'invert_keys', 'invert_ws', 'invert_ad', 'jam_key', 'disable_key',
+          'weapon_roulette', 'reload_addiction', 'jump_frenzy', 'crouch_spam',
+          'mouse_sensitivity', 'mouse_invert', 'smart_home'
+        ].includes(a.type)) {
           agent = a.type;
           if (a.duration_sec) duration = a.duration_sec;
         } else {
@@ -1527,6 +1620,8 @@
           if (a.duration_ms) duration = Math.round(a.duration_ms / 1000);
         }
       });
+
+      document.getElementById('trig-target').value = target;
       document.getElementById('trig-sounds').value = sounds.join(', ');
       document.getElementById('trig-visual').value = visual;
       document.getElementById('trig-agent').value = agent;
@@ -1545,7 +1640,7 @@
       });
 
       // Actions section (sounds, visuals, agent) is centrally controlled by Admin
-      ['trig-sounds', 'trig-visual', 'trig-agent', 'trig-duration'].forEach(id => {
+      ['trig-target', 'trig-sounds', 'trig-visual', 'trig-agent', 'trig-duration'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.disabled = isStreamer;
       });
@@ -1615,7 +1710,9 @@
       const pattern = document.getElementById('trig-pattern').value.trim();
       const match_mode = document.getElementById('trig-match-mode').value;
       const cost = parseInt(document.getElementById('trig-cost').value) || 0;
+      const cd = parseInt(document.getElementById('trig-cd').value) || 10;
       const role = document.getElementById('trig-role').value;
+      const target = document.getElementById('trig-target').value || 'both';
       const duration = parseInt(document.getElementById('trig-duration').value) || 10;
 
       const actions = [];
@@ -1623,6 +1720,7 @@
       if (soundInput) {
         actions.push({
           type: 'sound',
+          target,
           pool: soundInput.split(',').map(s => s.trim()).filter(Boolean),
           volume: 0.85,
         });
@@ -1631,6 +1729,7 @@
       if (visual) {
         actions.push({
           type: visual,
+          target,
           duration_ms: duration * 1000,
         });
       }
@@ -1647,8 +1746,9 @@
         } else {
           actions.push({
             type: agent,
+            target,
             duration_sec: duration,
-            pairs: [['w', 's'], ['a', 'd']],
+            pairs: agent === 'invert_ws' ? [['w', 's']] : (agent === 'invert_ad' ? [['a', 'd']] : [['w', 's'], ['a', 'd']]),
           });
         }
       }

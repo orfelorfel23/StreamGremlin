@@ -48,18 +48,58 @@ auth:
       can_trigger_tests: true
       can_mute_audio: true
 sounds:
-  bonk.wav:
+  access_denied_buzzer.wav:
     volume: 0.85
-  flashbang.wav:
-    volume: 0.9
   airhorn.wav:
     volume: 0.75
-  evil_laugh.wav:
+  bitcrush_8bit.wav:
+    volume: 0.85
+  boing.wav:
+    volume: 0.85
+  bonk.wav:
+    volume: 0.85
+  bottle_pop.wav:
     volume: 0.85
   censor_beep.wav:
     volume: 0.8
+  dimension_warp.wav:
+    volume: 0.85
+  earthquake_rumble.wav:
+    volume: 0.9
+  evil_laugh.wav:
+    volume: 0.85
+  f1_whoosh.wav:
+    volume: 0.85
+  flashbang.wav:
+    volume: 0.9
+  fuse_switch.wav:
+    volume: 0.85
+  glitch_static.wav:
+    volume: 0.85
+  heartbeat.wav:
+    volume: 0.85
   hype_horn.wav:
     volume: 0.85
+  jumpscare_screech.wav:
+    volume: 0.9
+  keyboard_clatter.wav:
+    volume: 0.85
+  key_jam_click.wav:
+    volume: 0.85
+  party_horn.wav:
+    volume: 0.85
+  portal_gun.wav:
+    volume: 0.85
+  rave_drop.wav:
+    volume: 0.9
+  snail_slurp.wav:
+    volume: 0.85
+  tilt_creak.wav:
+    volume: 0.85
+  whip_whistle.wav:
+    volume: 0.85
+  windows_critical.wav:
+    volume: 0.9
 triggers:
 - id: cmd_bonk
   name: Bonk
@@ -72,10 +112,12 @@ triggers:
   cooldown_sec: 5
   actions:
   - type: sound
+    target: both
     pool:
     - bonk.wav
     volume: 0.85
   - type: bouncing_emotes
+    target: both
     count: 5
     is_hype: false
 - id: cmd_tts
@@ -91,10 +133,11 @@ triggers:
   cooldown_sec: 15
   actions:
   - type: tts
+    target: both
     voice: de-DE-KatjaNeural
     volume: 0.9
 - id: cp_flashbang
-  name: Flashbang
+  name: Flashbang Granate
   enabled: true
   type: channel_point
   title: Flashbang werfen
@@ -104,37 +147,364 @@ triggers:
   cooldown_sec: 20
   actions:
   - type: flashbang
+    target: both
     duration_ms: 3000
-  - type: sound
-    pool:
-    - flashbang.wav
-    volume: 0.9
-- id: cp_invert_wasd
-  name: Steuerung invertieren (WASD)
+- id: cp_blackout
+  name: Stromausfall (Blackout)
   enabled: true
   type: channel_point
-  title: Steuerung invertieren (10s)
-  cost: 2500
+  title: Licht ausschalten (Blackout)
+  cost: 1800
+  allowed_roles:
+  - everyone
+  cooldown_sec: 25
+  actions:
+  - type: blackout
+    target: both
+    duration_ms: 4500
+- id: cp_tunnel_vision
+  name: Tunnelblick
+  enabled: true
+  type: channel_point
+  title: Tunnelblick aktivieren
+  cost: 1600
+  allowed_roles:
+  - everyone
+  cooldown_sec: 25
+  actions:
+  - type: tunnel_vision
+    target: both
+    duration_ms: 7000
+- id: cp_screen_shake
+  name: Erdbeben (Screen Shake)
+  enabled: true
+  type: channel_point
+  title: Erdbeben auslösen
+  cost: 1400
+  allowed_roles:
+  - everyone
+  cooldown_sec: 20
+  actions:
+  - type: screen_shake
+    target: both
+    duration_ms: 4000
+- id: cp_drunk_mode
+  name: 5 Promille Modus
+  enabled: true
+  type: channel_point
+  title: 5 Promille aktivieren
+  cost: 2000
   allowed_roles:
   - everyone
   cooldown_sec: 30
   actions:
+  - type: drunk_mode
+    target: both
+    duration_ms: 10000
+- id: cp_screen_glitch
+  name: Cyber Glitch
+  enabled: true
+  type: channel_point
+  title: Bildschirm glitchen
+  cost: 1500
+  allowed_roles:
+  - everyone
+  cooldown_sec: 20
+  actions:
+  - type: screen_glitch
+    target: both
+    duration_ms: 4000
+- id: cp_invert_colors
+  name: Negativ-Modus (Farben invertieren)
+  enabled: true
+  type: channel_point
+  title: Farben invertieren
+  cost: 2000
+  allowed_roles:
+  - everyone
+  cooldown_sec: 30
+  actions:
+  - type: invert_colors
+    target: both
+    duration_ms: 8000
+- id: cp_mirror_mode
+  name: Spiegel-Modus (Portal Gun)
+  enabled: true
+  type: channel_point
+  title: Bildschirm spiegeln
+  cost: 2200
+  allowed_roles:
+  - everyone
+  cooldown_sec: 30
+  actions:
+  - type: mirror_mode
+    target: both
+    duration_ms: 8000
+- id: cp_fake_bsod
+  name: Fake Windows Bluescreen
+  enabled: true
+  type: channel_point
+  title: Windows Bluescreen faken
+  cost: 2500
+  allowed_roles:
+  - everyone
+  cooldown_sec: 45
+  actions:
+  - type: fake_bsod
+    target: both
+    duration_ms: 4500
+- id: cp_censored_bar
+  name: Zensurbalken (Nur Stream)
+  enabled: true
+  type: channel_point
+  title: Streamer zensieren (FSK 18)
+  cost: 1200
+  allowed_roles:
+  - everyone
+  cooldown_sec: 20
+  actions:
+  - type: censored_bar
+    target: overlay
+    duration_ms: 5000
+- id: cp_matrix_rain
+  name: Matrix Code Regen
+  enabled: true
+  type: channel_point
+  title: Matrix Hack starten
+  cost: 1400
+  allowed_roles:
+  - everyone
+  cooldown_sec: 20
+  actions:
+  - type: matrix_rain
+    target: both
+    duration_ms: 7000
+- id: cp_gif_jumpscare
+  name: Random Jumpscare
+  enabled: true
+  type: channel_point
+  title: Schockmoment auslösen
+  cost: 3000
+  allowed_roles:
+  - everyone
+  cooldown_sec: 60
+  actions:
+  - type: gif_jumpscare
+    target: both
+    duration_ms: 2000
+- id: cp_fake_alert
+  name: Fake Sub/Donation Alarm
+  enabled: true
+  type: channel_point
+  title: Fake Donation einblenden
+  cost: 1500
+  allowed_roles:
+  - everyone
+  cooldown_sec: 30
+  actions:
+  - type: fake_alert
+    target: both
+    duration_ms: 5000
+- id: cp_invert_ws
+  name: Vor/Zurück Invertieren (W/S)
+  enabled: true
+  type: channel_point
+  title: Vor und Zurück vertauschen (8s)
+  cost: 2000
+  allowed_roles:
+  - everyone
+  cooldown_sec: 25
+  actions:
+  - type: invert_ws
+    target: agent
+    duration_sec: 8
+  - type: chat_reply
+    message: '@{user} hat Vor/Zurück für 8s invertiert!'
+- id: cp_invert_ad
+  name: Links/Rechts Invertieren (A/D)
+  enabled: true
+  type: channel_point
+  title: Links und Rechts vertauschen (8s)
+  cost: 2000
+  allowed_roles:
+  - everyone
+  cooldown_sec: 25
+  actions:
+  - type: invert_ad
+    target: agent
+    duration_sec: 8
+  - type: chat_reply
+    message: '@{user} hat Links/Rechts für 8s invertiert!'
+- id: cp_invert_wasd
+  name: Steuerung invertieren (Komplett WASD)
+  enabled: true
+  type: channel_point
+  title: Steuerung komplett invertieren (10s)
+  cost: 2500
+  allowed_roles:
+  - everyone
+  cooldown_sec: 35
+  actions:
   - type: invert_keys
+    target: agent
     pairs:
     - - w
       - s
     - - a
       - d
     duration_sec: 10
-  - type: troll_hud
-    title: Steuerung invertiert
-    duration_sec: 10
-  - type: sound
-    pool:
-    - evil_laugh.wav
-    volume: 0.85
   - type: chat_reply
-    message: '@{user} hat die Steuerung für 10 Sekunden invertiert.'
+    message: '@{user} hat die komplette Steuerung für 10 Sekunden invertiert.'
+- id: cp_jam_w
+  name: 'Taste verklemmt: Dauer-Sprint (W)'
+  enabled: true
+  type: channel_point
+  title: Vorwärts-Taste festklemmen (7s)
+  cost: 2000
+  allowed_roles:
+  - everyone
+  cooldown_sec: 30
+  actions:
+  - type: jam_key
+    target: agent
+    key: w
+    duration_sec: 7
+- id: cp_disable_reload
+  name: Nachlade-Sperre (Taste R gesperrt)
+  enabled: true
+  type: channel_point
+  title: Nachladen sperren (10s)
+  cost: 2200
+  allowed_roles:
+  - everyone
+  cooldown_sec: 35
+  actions:
+  - type: disable_key
+    target: agent
+    key: r
+    duration_sec: 10
+- id: cp_weapon_roulette
+  name: Waffen-Roulette (Lautlos)
+  enabled: true
+  type: channel_point
+  title: Waffen-Slots durchwechseln (7s)
+  cost: 1800
+  allowed_roles:
+  - everyone
+  cooldown_sec: 30
+  actions:
+  - type: weapon_roulette
+    target: agent
+    duration_sec: 7
+- id: cp_reload_addiction
+  name: Nachlade-Zwang (Lautlos)
+  enabled: true
+  type: channel_point
+  title: Nachlade-Zwang aktivieren (8s)
+  cost: 1800
+  allowed_roles:
+  - everyone
+  cooldown_sec: 30
+  actions:
+  - type: reload_addiction
+    target: agent
+    duration_sec: 8
+- id: cp_jump_frenzy
+  name: Häschen-Hüpfen (Boing)
+  enabled: true
+  type: channel_point
+  title: Dauer-Springen auslösen (8s)
+  cost: 1600
+  allowed_roles:
+  - everyone
+  cooldown_sec: 25
+  actions:
+  - type: jump_frenzy
+    target: agent
+    duration_sec: 8
+- id: cp_crouch_spam
+  name: Teabagging Spam (Lautlos)
+  enabled: true
+  type: channel_point
+  title: Teabagging Kniebeugen (8s)
+  cost: 1500
+  allowed_roles:
+  - everyone
+  cooldown_sec: 25
+  actions:
+  - type: crouch_spam
+    target: agent
+    duration_sec: 8
+- id: cp_mouse_snail
+  name: Maus Schneckentempo
+  enabled: true
+  type: channel_point
+  title: Mausempfindlichkeit auf Schneckentempo (8s)
+  cost: 2200
+  allowed_roles:
+  - everyone
+  cooldown_sec: 35
+  actions:
+  - type: mouse_sensitivity
+    target: agent
+    mode: snail
+    duration_sec: 8
+- id: cp_mouse_quake
+  name: Maus Quake-Pro
+  enabled: true
+  type: channel_point
+  title: Mausempfindlichkeit auf Maximum (8s)
+  cost: 2200
+  allowed_roles:
+  - everyone
+  cooldown_sec: 35
+  actions:
+  - type: mouse_sensitivity
+    target: agent
+    mode: quake
+    duration_sec: 8
+- id: cp_mouse_invert
+  name: Maus-Invertierung (Whip-Whistle)
+  enabled: true
+  type: channel_point
+  title: Maus Y-Achse invertieren (8s)
+  cost: 2400
+  allowed_roles:
+  - everyone
+  cooldown_sec: 35
+  actions:
+  - type: mouse_invert
+    target: agent
+    mode: y
+    duration_sec: 8
+- id: cp_wheel_fortune
+  name: Glücksrad Minigame
+  enabled: true
+  type: channel_point
+  title: Am Chaos-Glücksrad drehen
+  cost: 2000
+  allowed_roles:
+  - everyone
+  cooldown_sec: 45
+  actions:
+  - type: wheel_of_fortune
+    target: both
+    duration_ms: 5500
+- id: cmd_bomb
+  name: Zeitbombe Minigame
+  enabled: true
+  type: command
+  pattern: bombe
+  match_mode: word
+  allowed_roles:
+  - mod
+  - broadcaster
+  cooldown_sec: 60
+  actions:
+  - type: timebomb
+    target: both
+    mode: wire
+    duration_sec: 25
 - id: cp_red_light
   name: 'Smart Home: Rotes Licht'
   enabled: true
@@ -153,21 +523,6 @@ triggers:
     - 0
     brightness: 255
     duration_sec: 15
-- id: cmd_bomb
-  name: Zeitbombe Minigame
-  enabled: true
-  type: command
-  pattern: bombe
-  match_mode: word
-  allowed_roles:
-  - mod
-  - broadcaster
-  cooldown_sec: 60
-  actions:
-  - type: timebomb
-    defuse_word: cut
-    required_count: 8
-    duration_sec: 20
 - id: evt_raid
   name: Raid Empfang
   enabled: true
@@ -178,11 +533,14 @@ triggers:
   cooldown_sec: 5
   actions:
   - type: confetti_burst
+    target: both
     duration_ms: 5000
   - type: bouncing_emotes
+    target: both
     count: 25
     is_hype: true
   - type: sound
+    target: both
     pool:
     - airhorn.wav
     volume: 0.85

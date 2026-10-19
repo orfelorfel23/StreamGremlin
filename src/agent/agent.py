@@ -1,8 +1,11 @@
 """StreamGremlin Windows Companion Agent (StreamGremlin.exe).
 
-100% Anti-Cheat-Safe Userland Input Chaos Agent:
+100% Anti-Cheat-Safe Userland Input Chaos & Desktop Overlay Agent:
 - Zero memory reading/writing, zero DLL injection, zero process inspection.
 - Uses standard Windows userland keyboard/mouse synthesis and hooks (pynput + ctypes User32).
+- Transparent Click-Through Desktop Overlay for Dual-Mode visual effects (Flashbang, Blackout, Tunnel Vision, Glitch, BSOD, Jumpscare, Matrix Rain, Bouncing Emotes).
+- Native Win32 Gamma Ramp (Hardware Flashbang/Blackout) & Magnification API (Color Invert).
+- Local Asynchronous Audio Playback (winsound).
 - Outbound WebSocket connection to StreamGremlin Hub with silent auto-reconnect.
 - Emergency Hardware Panic: Press ESC 3x within 1.5 seconds to immediately stop all effects.
 - Windows System Tray icon (Green = Connected, Red = Disconnected) with Status & Exit menu.
@@ -12,15 +15,18 @@ from __future__ import annotations
 import argparse
 import asyncio
 import ctypes
+from ctypes import wintypes
 import json
 import logging
+import math
 import os
 import random
 import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+import urllib.request
 
 import httpx
 import websockets
@@ -38,20 +44,41 @@ try:
 except Exception:
     HAS_TRAY = False
 
+try:
+    import winsound
+    HAS_WINSOUND = True
+except Exception:
+    HAS_WINSOUND = False
+
+try:
+    import tkinter as tk
+    HAS_TKINTER = True
+except Exception:
+    HAS_TKINTER = False
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger("streamgremlin.agent")
 
-AGENT_VERSION = "1.0.0"
+AGENT_VERSION = "1.1.0"
 
-# Win32 Userland Mouse Speed Constants (SPI_GETMOUSESPEED / SPI_SETMOUSESPEED)
+# Win32 Constants
 SPI_GETMOUSESPEED = 0x0070
 SPI_SETMOUSESPEED = 0x0071
 SPIF_SENDCHANGE = 0x0002
 
+GWL_EXSTYLE = -20
+WS_EX_LAYERED = 0x80000
+WS_EX_TRANSPARENT = 0x20
+WS_EX_TOPMOST = 0x8
+LWA_COLORKEY = 0x1
 
+
+# ==============================================================================
+# Native Win32 Helpers (Mouse Speed, Gamma Ramp, Magnification, Display Flip)
+# ==============================================================================
 def get_win32_mouse_speed() -> int:
     """Read current Windows userland mouse speed (1-20)."""
     if sys.platform != "win32":
@@ -74,20 +101,80 @@ def set_win32_mouse_speed(speed: int) -> None:
     )
 
 
+def set_display_gamma_ramp(mode: str = "normal") -> None:
+    """Hardware Gamma manipulation (Flashbang / Blackout / Normal)."""
+    if sys.platform != "win32":
+        return
+    try:
+        hdc = ctypes.windll.user32.GetDC(0)
+        ramp = (ctypes.c_ushort * 768)()
+        for i in range(256):
+            if mode == "flashbang":
+                val = 65535
+            elif mode == "blackout":
+                val = 0
+            else:
+                val = int((i / 255.0) * 65535)
+            ramp[i] = val
+            ramp[256 + i] = val
+            ramp[512 + i] = val
+        ctypes.windll.gdi32.SetDeviceGammaRamp(hdc, ctypes.byref(ramp))
+        ctypes.windll.user32.ReleaseDC(0, hdc)
+    except Exception as exc:
+        logger.debug("Gamma ramp error: %s", exc)
+
+
+def set_win32_color_inversion(enable: bool) -> None:
+    """Hardware Color Inversion via Windows Magnification API."""
+    if sys.platform != "win32":
+        return
+    try:
+        mag = ctypes.windll.magnification
+        if enable:
+            mag.MagInitialize()
+            invert_matrix = (ctypes.c_float * 25)(
+                -1.0, 0.0, 0.0, 0.0, 0.0,
+                0.0, -1.0, 0.0, 0.0, 0.0,
+                0.0, 0.0, -1.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, 1.0, 0.0,
+                1.0, 1.0, 1.0, 0.0, 1.0,
+            )
+            mag.MagSetFullscreenColorEffect(ctypes.byref(invert_matrix))
+        else:
+            id_matrix = (ctypes.c_float * 25)(
+                1.0, 0.0, 0.0, 0.0, 0.0,
+                0.0, 1.0, 0.0, 0.0, 0.0,
+                0.0, 0.0, 1.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, 1.0, 0.0,
+                0.0, 0.0, 0.0, 0.0, 1.0,
+            )
+            mag.MagSetFullscreenColorEffect(ctypes.byref(id_matrix))
+            mag.MagUninitialize()
+    except Exception as exc:
+        logger.debug("Magnification API error: %s", exc)
+
+
+# ==============================================================================
+# Input Chaos Controller (Anti-Cheat Safe Keyboard & Mouse Trolls)
+# ==============================================================================
 class InputChaosController:
     """Manages overlapping userland keyboard and mouse troll effects safely."""
 
     def __init__(self, on_panic_callback=None) -> None:
         self.on_panic_callback = on_panic_callback
         self._lock = threading.RLock()
-        self.active_trolls: Dict[str, float] = {}  # action_key -> expiry timestamp
-        self.disabled_keys: Dict[str, float] = {}  # key_name -> expiry timestamp
-        self.jammed_keys: Dict[str, float] = {}    # key_name -> expiry timestamp
+        self.active_trolls: Dict[str, float] = {}   # action_key -> expiry timestamp
+        self.disabled_keys: Dict[str, float] = {}   # key_name -> expiry timestamp
+        self.jammed_keys: Dict[str, float] = {}     # key_name -> expiry timestamp
+        self.invert_pairs: List[Tuple[str, str]] = [("w", "s"), ("a", "d")]
+        self.mouse_invert_mode: str = "y"           # "y", "x", or "both"
         self.original_mouse_speed: int = get_win32_mouse_speed()
         self.mouse_speed_overridden: bool = False
+        self.color_inverted: bool = False
 
         self.esc_timestamps: List[float] = []
         self._synthetic_guard = False
+        self._last_mouse_pos: Optional[Tuple[int, int]] = None
 
         self.kb_controller = keyboard.Controller() if HAS_PYNPUT else None
         self.mouse_controller = mouse.Controller() if HAS_PYNPUT else None
@@ -142,9 +229,12 @@ class InputChaosController:
         ch = char.lower()
 
         with self._lock:
-            # If invert_keys is active, counter-tap opposite movement key
-            if self.active_trolls.get("invert_keys", 0) > now:
-                swap_map = {"w": "s", "s": "w", "a": "d", "d": "a"}
+            # If invert_keys / invert_ws / invert_ad is active, counter-tap opposite key
+            if any(self.active_trolls.get(k, 0) > now for k in ("invert_keys", "invert_ws", "invert_ad")):
+                swap_map = {}
+                for k1, k2 in self.invert_pairs:
+                    swap_map[k1] = k2
+                    swap_map[k2] = k1
                 if ch in swap_map and self.kb_controller:
                     opposite = swap_map[ch]
                     self._tap_key_safe(opposite, hold_sec=0.06)
@@ -158,32 +248,49 @@ class InputChaosController:
                     self._synthetic_guard = False
 
     def _on_mouse_move(self, x: int, y: int) -> None:
-        """Apply slight disorienting axis nudge when mouse_invert is active."""
+        """Apply genuine responsive axis inversion when mouse_invert is active."""
         if self._synthetic_guard or not self.mouse_controller:
             return
+
         now = time.time()
         with self._lock:
-            if self.active_trolls.get("mouse_invert", 0) <= now:
-                return
-        # Gentle jitter/invert nudge without locking cursor
+            is_inverted = self.active_trolls.get("mouse_invert", 0) > now
+            invert_mode = self.mouse_invert_mode
+
+        if not self._last_mouse_pos:
+            self._last_mouse_pos = (x, y)
+            return
+
+        last_x, last_y = self._last_mouse_pos
+        dx = x - last_x
+        dy = y - last_y
+        self._last_mouse_pos = (x, y)
+
+        if not is_inverted or (dx == 0 and dy == 0):
+            return
+
+        # Counter-move to invert hardware axis
         try:
             self._synthetic_guard = True
-            dx = random.choice([-6, 6])
-            dy = random.choice([-6, 6])
-            self.mouse_controller.move(dx, dy)
+            if invert_mode == "y":
+                self.mouse_controller.move(0, -2 * dy)
+            elif invert_mode == "x":
+                self.mouse_controller.move(-2 * dx, 0)
+            else:  # "both"
+                self.mouse_controller.move(-2 * dx, -2 * dy)
         except Exception:
             pass
         finally:
             self._synthetic_guard = False
 
-    def _tap_key_safe(self, key_Target: Any, hold_sec: float = 0.05) -> None:
+    def _tap_key_safe(self, key_target: Any, hold_sec: float = 0.05) -> None:
         if not self.kb_controller:
             return
         try:
             self._synthetic_guard = True
-            self.kb_controller.press(key_Target)
+            self.kb_controller.press(key_target)
             time.sleep(hold_sec)
-            self.kb_controller.release(key_Target)
+            self.kb_controller.release(key_target)
         except Exception as exc:
             logger.debug("Key tap error: %s", exc)
         finally:
@@ -211,21 +318,51 @@ class InputChaosController:
                 key_name = str(params.get("key", "r")).lower()[:1] or "r"
                 self.disabled_keys[key_name] = expiry
 
+            elif action == "invert_ws":
+                self.invert_pairs = [("w", "s")]
+                self.active_trolls["invert_ws"] = expiry
+
+            elif action == "invert_ad":
+                self.invert_pairs = [("a", "d")]
+                self.active_trolls["invert_ad"] = expiry
+
+            elif action == "invert_keys":
+                raw_pairs = params.get("pairs") or [["w", "s"], ["a", "d"]]
+                self.invert_pairs = [(str(p[0]).lower(), str(p[1]).lower()) for p in raw_pairs if len(p) >= 2]
+                self.active_trolls["invert_keys"] = expiry
+
+            elif action == "mouse_invert":
+                self.mouse_invert_mode = str(params.get("mode", "y")).lower()
+                self.active_trolls["mouse_invert"] = expiry
+
             elif action == "mouse_sensitivity":
                 if not self.mouse_speed_overridden:
                     self.original_mouse_speed = get_win32_mouse_speed()
                     self.mouse_speed_overridden = True
                 mode = str(params.get("mode", "snail")).lower()
                 multiplier = float(params.get("multiplier", 0.2 if mode == "snail" else 2.5))
-                target_speed = 2 if multiplier < 1.0 else 20
+                target_speed = 2 if multiplier < 1.0 or mode == "snail" else 20
                 set_win32_mouse_speed(target_speed)
                 self.active_trolls["mouse_sensitivity"] = expiry
+
+            elif action == "invert_colors":
+                set_win32_color_inversion(True)
+                self.color_inverted = True
+                self.active_trolls["invert_colors"] = expiry
+
+            elif action == "flashbang":
+                set_display_gamma_ramp("flashbang")
+                self.active_trolls["gamma_flash"] = now + 1.2
+
+            elif action == "blackout":
+                set_display_gamma_ramp("blackout")
+                self.active_trolls["gamma_blackout"] = expiry
 
             else:
                 self.active_trolls[action] = expiry
 
     def panic_reset(self, notify_hub: bool = True) -> None:
-        """Immediately cancel all active trolls and restore all held keys & mouse speed."""
+        """Immediately cancel all active trolls and restore all held keys, mouse speed & gamma."""
         with self._lock:
             jammed = list(self.jammed_keys.keys())
             self.active_trolls.clear()
@@ -237,8 +374,11 @@ class InputChaosController:
                     self._synthetic_guard = True
                     for k in jammed:
                         self.kb_controller.release(k)
-                    for k in ("w", "a", "s", "d", "f", "r", "c"):
-                        self.kb_controller.release(k)
+                    for k in ("w", "a", "s", "d", "r", "c", "e", "f", "1", "2", "3", "4"):
+                        try:
+                            self.kb_controller.release(k)
+                        except Exception:
+                            pass
                     if HAS_PYNPUT:
                         self.kb_controller.release(keyboard.Key.space)
                         self.kb_controller.release(keyboard.Key.ctrl_l)
@@ -251,6 +391,12 @@ class InputChaosController:
                 set_win32_mouse_speed(self.original_mouse_speed)
                 self.mouse_speed_overridden = False
 
+            if self.color_inverted:
+                set_win32_color_inversion(False)
+                self.color_inverted = False
+
+            set_display_gamma_ramp("normal")
+
         if notify_hub and self.on_panic_callback:
             try:
                 self.on_panic_callback()
@@ -258,12 +404,12 @@ class InputChaosController:
                 pass
 
     def _background_tick_loop(self) -> None:
-        """Periodic worker that executes periodic troll actions and cleans up expired timers."""
+        """Periodic worker executing repetitive trolls (Space hop, R tap, slot cycling, sway drift)."""
         last_jump = 0.0
         last_reload = 0.0
         last_roulette = 0.0
-        last_flashlight = 0.0
         last_crouch = 0.0
+        last_shake = 0.0
 
         while self._running:
             now = time.time()
@@ -278,7 +424,6 @@ class InputChaosController:
                             self.kb_controller.release(k)
                         finally:
                             self._synthetic_guard = False
-                    logger.info("Released jammed key: %s", k)
 
                 # 2. Clean up expired disabled keys
                 expired_dis = [k for k, exp in self.disabled_keys.items() if exp <= now]
@@ -292,7 +437,11 @@ class InputChaosController:
                     if act == "mouse_sensitivity" and self.mouse_speed_overridden:
                         set_win32_mouse_speed(self.original_mouse_speed)
                         self.mouse_speed_overridden = False
-                        logger.info("Restored Windows mouse speed to %d", self.original_mouse_speed)
+                    if act == "invert_colors" and self.color_inverted:
+                        set_win32_color_inversion(False)
+                        self.color_inverted = False
+                    if act in ("gamma_flash", "gamma_blackout"):
+                        set_display_gamma_ramp("normal")
 
                 active_snapshot = dict(self.active_trolls)
                 jammed_snapshot = dict(self.jammed_keys)
@@ -307,34 +456,203 @@ class InputChaosController:
                         self._synthetic_guard = False
 
             # Execute periodic trolls outside lock
-            if "jump_frenzy" in active_snapshot and now - last_jump >= random.uniform(0.75, 1.35):
+            if "jump_frenzy" in active_snapshot and now - last_jump >= random.uniform(0.75, 1.25):
                 last_jump = now
                 if HAS_PYNPUT:
                     self._tap_key_safe(keyboard.Key.space, hold_sec=0.06)
 
-            if "reload_addiction" in active_snapshot and now - last_reload >= random.uniform(1.2, 2.5):
+            if "reload_addiction" in active_snapshot and now - last_reload >= random.uniform(1.3, 2.4):
                 last_reload = now
                 self._tap_key_safe("r", hold_sec=0.05)
 
-            if "weapon_roulette" in active_snapshot and now - last_roulette >= random.uniform(0.9, 1.8):
+            if "weapon_roulette" in active_snapshot and now - last_roulette >= random.uniform(0.9, 1.7):
                 last_roulette = now
                 slot_key = random.choice(["1", "2", "3", "4"])
                 self._tap_key_safe(slot_key, hold_sec=0.05)
-
-            if "flashlight_rave" in active_snapshot and now - last_flashlight >= 0.35:
-                last_flashlight = now
-                self._tap_key_safe("f", hold_sec=0.04)
 
             if "crouch_spam" in active_snapshot and now - last_crouch >= 0.28:
                 last_crouch = now
                 if HAS_PYNPUT:
                     self._tap_key_safe(keyboard.Key.ctrl_l, hold_sec=0.08)
 
-            time.sleep(0.1)
+            # In-game Camera Shake
+            if "screen_shake" in active_snapshot and now - last_shake >= 0.04 and self.mouse_controller:
+                last_shake = now
+                try:
+                    self._synthetic_guard = True
+                    self.mouse_controller.move(random.choice([-8, 8]), random.choice([-8, 8]))
+                finally:
+                    self._synthetic_guard = False
+
+            # In-game Drunk Sway Drift
+            if "drunk_mode" in active_snapshot and self.mouse_controller:
+                drift_x = int(5.0 * math.sin(now * 2.2))
+                try:
+                    self._synthetic_guard = True
+                    self.mouse_controller.move(drift_x, 0)
+                finally:
+                    self._synthetic_guard = False
+
+            time.sleep(0.04)
 
 
+# ==============================================================================
+# Transparent Click-Through Desktop Visual Overlay (Dual-Mode on Gaming-PC)
+# ==============================================================================
+class DesktopVisualOverlay:
+    """Renders visual chaos (Flashbang, Blackout, Tunnel, Glitch, BSOD, Emotes) directly over the game."""
+
+    def __init__(self) -> None:
+        self.root: Optional[tk.Tk] = None
+        self.canvas: Optional[tk.Canvas] = None
+        self._thread: Optional[threading.Thread] = None
+        self.active_overlay_eff: Optional[str] = None
+        self.overlay_expiry: float = 0.0
+        self.bouncing_emotes: List[Dict[str, Any]] = []
+        self._lock = threading.Lock()
+
+    def start(self) -> None:
+        if not HAS_TKINTER:
+            return
+        self._thread = threading.Thread(target=self._run_ui, daemon=True)
+        self._thread.start()
+
+    def _run_ui(self) -> None:
+        try:
+            self.root = tk.Tk()
+            self.root.title("StreamGremlin Desktop Overlay")
+            sw = self.root.winfo_screenwidth()
+            sh = self.root.winfo_screenheight()
+            self.root.geometry(f"{sw}x{sh}+0+0")
+            self.root.overrideredirect(True)
+            self.root.wm_attributes("-topmost", True)
+
+            # Set chroma-key transparency (#000001 is glass-transparent)
+            trans_color = "#000001"
+            self.root.wm_attributes("-transparentcolor", trans_color)
+            self.root.config(bg=trans_color)
+
+            self.canvas = tk.Canvas(self.root, width=sw, height=sh, bg=trans_color, highlightthickness=0)
+            self.canvas.pack(fill="both", expand=True)
+
+            # Apply Win32 WS_EX_TRANSPARENT so all mouse clicks pass straight through to game!
+            if sys.platform == "win32":
+                self.root.update_idletasks()
+                hwnd = ctypes.windll.user32.GetParent(self.root.winfo_id()) or self.root.winfo_id()
+                style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+                ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style | WS_EX_LAYERED | WS_EX_TRANSPARENT)
+
+            self._animate_loop()
+            self.root.mainloop()
+        except Exception as exc:
+            logger.debug("Desktop overlay initialization skipped: %s", exc)
+
+    def trigger_visual(self, effect: str, duration_ms: int, payload: Dict[str, Any]) -> None:
+        with self._lock:
+            self.active_overlay_eff = effect
+            self.overlay_expiry = time.time() + (duration_ms / 1000.0)
+
+    def add_emotes(self, count: int = 5, is_hype: bool = False) -> None:
+        with self._lock:
+            now = time.time()
+            emojis = ["🔥", "👑", "💀", "😂", "🚀", "💣", "💜", "⚡", "🍀", "👾"]
+            for _ in range(count):
+                self.bouncing_emotes.append({
+                    "x": random.randint(100, 1800),
+                    "y": -random.randint(20, 200),
+                    "vx": random.uniform(-4, 4),
+                    "vy": random.uniform(2, 7),
+                    "emoji": random.choice(emojis),
+                    "born": now,
+                })
+
+    def _animate_loop(self) -> None:
+        if not self.root or not self.canvas:
+            return
+
+        now = time.time()
+        sw = self.root.winfo_screenwidth()
+        sh = self.root.winfo_screenheight()
+
+        with self._lock:
+            eff = self.active_overlay_eff
+            expiry = self.overlay_expiry
+            emotes = list(self.bouncing_emotes)
+
+        self.canvas.delete("all")
+
+        # 1. Render Active Screen Visuals
+        if eff and expiry > now:
+            rem_sec = expiry - now
+            if eff == "flashbang":
+                alpha = min(1.0, rem_sec / 1.5)
+                # Strobe flash on canvas
+                self.canvas.create_rectangle(0, 0, sw, sh, fill="#ffffff", outline="")
+
+            elif eff == "blackout":
+                self.canvas.create_rectangle(0, 0, sw, sh, fill="#000000", outline="")
+
+            elif eff == "tunnel_vision":
+                # Dark vignette leaving central circular hole
+                cx, cy, r = sw // 2, sh // 2, 160
+                self.canvas.create_rectangle(0, 0, sw, cy - r, fill="#090a0f", outline="")
+                self.canvas.create_rectangle(0, cy + r, sw, sh, fill="#090a0f", outline="")
+                self.canvas.create_rectangle(0, cy - r, cx - r, cy + r, fill="#090a0f", outline="")
+                self.canvas.create_rectangle(cx + r, cy - r, sw, cy + r, fill="#090a0f", outline="")
+
+            elif eff == "screen_glitch":
+                for _ in range(12):
+                    gy = random.randint(0, sh)
+                    gh = random.randint(10, 45)
+                    col = random.choice(["#22c55e", "#a855f7", "#ef4444", "#38bdf8"])
+                    self.canvas.create_rectangle(0, gy, sw, gy + gh, fill=col, outline="")
+
+            elif eff == "fake_bsod":
+                self.canvas.create_rectangle(0, 0, sw, sh, fill="#0078d7", outline="")
+                self.canvas.create_text(sw // 4, sh // 3, text=":(", fill="#ffffff", font=("Segoe UI", 80), anchor="w")
+                msg = "Auf dem PC ist ein Problem aufgetreten.\nEr muss neu gestartet werden.\n\nStillstandcode: STREAM_GREMLIN_OVERLOAD"
+                self.canvas.create_text(sw // 4, sh // 2, text=msg, fill="#ffffff", font=("Segoe UI", 24), anchor="w")
+
+            elif eff == "matrix_rain":
+                chars = "0101XYZSTREAMGREMLINｦｱｳｴｵｶｷｹｺ"
+                for col in range(0, sw, 35):
+                    ry = int((now * 400 + col * 17) % sh)
+                    self.canvas.create_text(col, ry, text=random.choice(chars), fill="#22c55e", font=("Consolas", 18))
+
+            elif eff == "gif_jumpscare":
+                self.canvas.create_rectangle(0, 0, sw, sh, fill="#000000", outline="")
+                self.canvas.create_text(sw // 2, sh // 2, text="👻 JUMPSCARE! 💀", fill="#ef4444", font=("Arial Black", 56), anchor="center")
+
+        elif eff and expiry <= now:
+            with self._lock:
+                self.active_overlay_eff = None
+
+        # 2. Render 2D Bouncing Emotes
+        surviving_emotes = []
+        for em in emotes:
+            if now - em["born"] > 10.0:
+                continue
+            em["vy"] += 0.42
+            em["x"] += em["vx"]
+            em["y"] += em["vy"]
+            if em["y"] > sh - 40:
+                em["y"] = sh - 40
+                em["vy"] = -em["vy"] * 0.72
+                em["vx"] *= 0.94
+            self.canvas.create_text(em["x"], em["y"], text=em["emoji"], font=("Segoe UI Emoji", 26))
+            surviving_emotes.append(em)
+
+        with self._lock:
+            self.bouncing_emotes = surviving_emotes[:50]
+
+        self.root.after(33, self._animate_loop)
+
+
+# ==============================================================================
+# Main Companion Agent
+# ==============================================================================
 class StreamGremlinAgent:
-    """Main Companion Agent coordinating WebSocket connection, Auto-Updater check, and System Tray."""
+    """Main Companion Agent coordinating WebSocket, Local Audio, Input Chaos & Desktop Overlay."""
 
     def __init__(self, hub_url: str, token: str) -> None:
         self.hub_url = hub_url.rstrip("/")
@@ -347,6 +665,9 @@ class StreamGremlinAgent:
         self.tray_icon: Optional[Any] = None
 
         self.chaos = InputChaosController(on_panic_callback=self._send_panic_from_thread)
+        self.overlay = DesktopVisualOverlay()
+        self.sound_cache_dir = Path(os.environ.get("LOCALAPPDATA", ".")) / "StreamGremlin" / "sounds"
+        self.sound_cache_dir.mkdir(parents=True, exist_ok=True)
 
     def _ws_url(self) -> str:
         base = self.hub_url
@@ -371,6 +692,23 @@ class StreamGremlinAgent:
             except Exception:
                 pass
 
+    def play_local_sound(self, filename: str, sound_url: str) -> None:
+        """Download sound from Hub if missing and play asynchronously through streamer's headset."""
+        if not HAS_WINSOUND or sys.platform != "win32":
+            return
+        local_path = self.sound_cache_dir / Path(filename).name
+
+        def _play_worker() -> None:
+            try:
+                if not local_path.exists():
+                    full_url = f"{self.hub_url}{sound_url}" if sound_url.startswith("/") else sound_url
+                    urllib.request.urlretrieve(full_url, str(local_path))
+                winsound.PlaySound(str(local_path), winsound.SND_FILENAME | winsound.SND_ASYNC)
+            except Exception as exc:
+                logger.debug("Local sound play error: %s", exc)
+
+        threading.Thread(target=_play_worker, daemon=True).start()
+
     async def check_for_updates(self) -> None:
         """Query GET /api/agent/version on startup."""
         url = f"{self.hub_url}/api/agent/version"
@@ -383,13 +721,10 @@ class StreamGremlinAgent:
                     if remote_ver != AGENT_VERSION:
                         self.update_available = remote_ver
                         logger.warning(
-                            "New StreamGremlin Agent version available: v%s (current: v%s). Download: %s",
+                            "New StreamGremlin Agent version available: v%s (current: v%s).",
                             remote_ver,
                             AGENT_VERSION,
-                            data.get("download_url", self.hub_url),
                         )
-                    else:
-                        logger.info("StreamGremlin Agent v%s is up to date.", AGENT_VERSION)
         except Exception as exc:
             logger.debug("Update check skipped/failed: %s", exc)
 
@@ -405,7 +740,6 @@ class StreamGremlinAgent:
             try:
                 logger.info("Connecting to StreamGremlin Hub: %s", self.hub_url)
                 async with websockets.connect(ws_url, ping_interval=20, ping_timeout=20) as ws:
-                    # Send auth handshake expected by Hub
                     await ws.send(
                         json.dumps({
                             "action": "auth",
@@ -445,22 +779,38 @@ class StreamGremlinAgent:
 
     def _handle_hub_message(self, msg: Dict[str, Any]) -> None:
         action = msg.get("action") or msg.get("type")
+
         if action == "panic":
-            logger.warning("Hub triggered PANIC! Resetting all active inputs.")
+            logger.warning("Hub triggered PANIC! Resetting all active inputs & overlays.")
             self.chaos.panic_reset(notify_hub=False)
-        elif action == "agent_troll":
-            troll_act = str(msg.get("troll_action") or "")
-            duration = float(msg.get("duration") or msg.get("duration_sec") or 5.0)
-            params = msg.get("params") or msg
-            self.chaos.trigger_troll(troll_act, duration, params)
+
+        elif action == "play_sound":
+            filename = msg.get("filename", "")
+            sound_url = msg.get("sound_url", f"/sounds/{filename}")
+            if filename:
+                self.play_local_sound(filename, sound_url)
+
+        elif action == "visual":
+            effect = msg.get("effect", "")
+            duration_ms = int(msg.get("duration_ms", 4000))
+            self.overlay.trigger_visual(effect, duration_ms, msg)
+            if effect in ("flashbang", "blackout", "invert_colors", "screen_shake", "drunk_mode"):
+                self.chaos.trigger_troll(effect, duration_ms / 1000.0, msg)
+
+        elif action == "emote":
+            count = int(msg.get("count", 5))
+            is_hype = bool(msg.get("is_hype", False))
+            self.overlay.add_emotes(count=count, is_hype=is_hype)
+
         elif action in (
             "invert_keys",
+            "invert_ws",
+            "invert_ad",
             "jam_key",
             "disable_key",
             "weapon_roulette",
             "reload_addiction",
             "jump_frenzy",
-            "flashlight_rave",
             "crouch_spam",
             "mouse_sensitivity",
             "mouse_invert",
@@ -477,12 +827,10 @@ class StreamGremlinAgent:
             self._update_tray_icon()
 
     def _create_status_image(self, connected: bool) -> "Image.Image":
-        """Build tray icon with Gremlin mascot (if found) + bright Green/Red status badge."""
         size = 64
         img = Image.new("RGBA", (size, size), (13, 15, 18, 255))
         draw = ImageDraw.Draw(img)
 
-        # Try loading icon.png from bundle or parent folder
         icon_candidates = [
             Path(getattr(sys, "_MEIPASS", ".")) / "icon.png",
             Path(__file__).resolve().parents[2] / "icon.png",
@@ -496,112 +844,94 @@ class StreamGremlinAgent:
                     break
                 except Exception:
                     pass
-        else:
-            # Industrial hexagon fallback
-            draw.rectangle([4, 4, 60, 60], fill=(24, 28, 34, 255), outline=(57, 255, 20, 255), width=3)
 
-        # Status dot in bottom-right corner (Green = Connected, Red = Disconnected)
-        badge_color = (57, 255, 20, 255) if connected else (255, 42, 42, 255)
-        draw.ellipse([40, 40, 62, 62], fill=badge_color, outline=(0, 0, 0, 255), width=3)
+        dot_color = (34, 197, 94, 255) if connected else (239, 68, 68, 255)
+        draw.ellipse([42, 42, 60, 60], fill=dot_color, outline=(0, 0, 0, 255), width=2)
         return img
 
     def _update_tray_icon(self) -> None:
-        if not self.tray_icon or not HAS_TRAY:
+        if not HAS_TRAY or not self.tray_icon:
             return
         try:
             self.tray_icon.icon = self._create_status_image(self.connected)
-            status_str = "Connected" if self.connected else "Disconnected (Reconnecting...)"
-            self.tray_icon.title = f"StreamGremlin Agent v{AGENT_VERSION} — {status_str}"
+            status_text = "Verbunden" if self.connected else "Getrennt"
+            self.tray_icon.title = f"StreamGremlin ({status_text})"
         except Exception:
             pass
 
-    def run(self) -> None:
-        """Start input listeners, background WebSocket thread, and Windows System Tray."""
-        self.chaos.start_listeners()
+    def run_tray(self) -> None:
+        if not HAS_TRAY:
+            logger.info("pystray not installed; running in console mode.")
+            self._stop_event.wait()
+            return
 
+        def on_panic(icon, item):
+            self.chaos.panic_reset(notify_hub=True)
+
+        def on_exit(icon, item):
+            self._stop_event.set()
+            self.chaos.stop()
+            icon.stop()
+
+        menu = pystray.Menu(
+            pystray.MenuItem("PANIC! Reset Inputs (ESC 3x)", on_panic),
+            pystray.MenuItem("Beenden", on_exit),
+        )
+
+        self.tray_icon = pystray.Icon(
+            "StreamGremlin",
+            self._create_status_image(False),
+            "StreamGremlin Companion Agent",
+            menu,
+        )
+        self.tray_icon.run()
+
+    def start(self) -> None:
+        self.chaos.start_listeners()
+        self.overlay.start()
         ws_thread = threading.Thread(target=lambda: asyncio.run(self.ws_loop()), daemon=True)
         ws_thread.start()
-
-        if HAS_TRAY:
-            def on_panic_clicked(icon, item):
-                self.chaos.panic_reset(notify_hub=True)
-
-            def on_exit_clicked(icon, item):
-                logger.info("Shutting down StreamGremlin Agent...")
-                self._stop_event.set()
-                self.chaos.stop()
-                icon.stop()
-
-            menu = pystray.Menu(
-                pystray.MenuItem(
-                    lambda item: f"Status: {'ONLINE' if self.connected else 'OFFLINE'} (v{AGENT_VERSION})",
-                    None,
-                    enabled=False,
-                ),
-                pystray.MenuItem(
-                    lambda item: f"Active Trolls: {len(self.chaos.active_trolls) + len(self.chaos.jammed_keys)}",
-                    None,
-                    enabled=False,
-                ),
-                pystray.Menu.SEPARATOR,
-                pystray.MenuItem("PANIC! Reset Inputs (ESC 3x)", on_panic_clicked),
-                pystray.MenuItem("Beenden", on_exit_clicked),
-            )
-            self.tray_icon = pystray.Icon(
-                "StreamGremlin",
-                self._create_status_image(False),
-                f"StreamGremlin Agent v{AGENT_VERSION}",
-                menu,
-            )
-            logger.info("System Tray icon active. Press ESC 3x at any time for Emergency Panic.")
-            self.tray_icon.run()
-        else:
-            logger.info("Running in console mode (Press Ctrl+C to stop, or ESC 3x for Panic).")
-            try:
-                while not self._stop_event.is_set():
-                    time.sleep(0.5)
-            except KeyboardInterrupt:
-                self._stop_event.set()
-                self.chaos.stop()
+        self.run_tray()
 
 
-def load_agent_config() -> Dict[str, str]:
-    """Load hub_url and token from agent.json, agent_config.json, or environment variables."""
-    cfg = {
-        "hub_url": os.getenv("STREAMGREMLIN_HUB_URL", "https://streamgremlin.orfel.de"),
-        "token": os.getenv("AGENT_TOKEN", ""),
-    }
-    config_paths = [
-        Path("agent.json"),
+def load_agent_config() -> Tuple[str, str]:
+    hub_url = os.environ.get("STREAMGREMLIN_HUB_URL", "").strip()
+    token = os.environ.get("STREAMGREMLIN_AGENT_TOKEN", "").strip()
+
+    cfg_candidates = [
+        Path(getattr(sys, "_MEIPASS", ".")) / "agent_config.json",
         Path("agent_config.json"),
-        Path(sys.executable).parent / "agent.json",
-        Path(sys.executable).parent / "agent_config.json",
+        Path(__file__).resolve().parent / "agent_config.json",
     ]
-    for path in config_paths:
-        if path.exists():
+    for p in cfg_candidates:
+        if p.exists():
             try:
-                data = json.loads(path.read_text(encoding="utf-8"))
-                hub = data.get("hub_http_url") or data.get("hub_url") or data.get("hub_ws_url")
-                if hub:
-                    cfg["hub_url"] = hub
-                tok = data.get("agent_token") or data.get("token")
-                if tok:
-                    cfg["token"] = tok
+                data = json.loads(p.read_text(encoding="utf-8"))
+                hub_url = hub_url or data.get("hub_url") or data.get("url") or ""
+                token = token or data.get("token") or data.get("agent_token") or ""
                 break
             except Exception:
                 pass
-    return cfg
+
+    return hub_url or "https://streamgremlin.orfel.de", token
 
 
 def main() -> None:
-    defaults = load_agent_config()
     parser = argparse.ArgumentParser(description="StreamGremlin Windows Companion Agent")
-    parser.add_argument("--url", default=defaults["hub_url"], help="StreamGremlin Hub URL")
-    parser.add_argument("--token", default=defaults["token"], help="AGENT_TOKEN shared secret")
+    parser.add_argument("--url", default="", help="StreamGremlin Hub Base URL")
+    parser.add_argument("--token", default="", help="Agent Auth Token")
     args = parser.parse_args()
 
-    agent = StreamGremlinAgent(hub_url=args.url, token=args.token)
-    agent.run()
+    default_url, default_token = load_agent_config()
+    hub_url = args.url or default_url
+    token = args.token or default_token
+
+    print(f"=== StreamGremlin Companion Agent v{AGENT_VERSION} ===")
+    print(f"Hub URL: {hub_url}")
+    print("Emergency Panic Hotkey: Press ESC 3x within 1.5s")
+
+    agent = StreamGremlinAgent(hub_url=hub_url, token=token)
+    agent.start()
 
 
 if __name__ == "__main__":
