@@ -5,8 +5,7 @@
   <p>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-CC0_1.0-39ff14?style=flat-square" alt="CC0 1.0 Universal" /></a>
     <img src="https://img.shields.io/badge/Port-4736-38bdf8?style=flat-square" alt="Port 4736" />
-    <img src="https://img.shields.io/badge/Database-None_(100%25_YAML)-f59e0b?style=flat-square" alt="Zero Database" />
-    <img src="https://img.shields.io/badge/Anti--Cheat-100%25_Userland_Safe-39ff14?style=flat-square" alt="Anti-Cheat Safe" />
+    <img src="https://img.shields.io/badge/Database-None_(YAML)-f59e0b?style=flat-square" alt="Zero Database" />
   </p>
 </div>
 
@@ -14,15 +13,15 @@
 
 ## Overview
 
-**StreamGremlin** is an ultra-low-latency, database-free interactive stream chaos engine designed for Twitch streamers and their communities. Viewers and moderators can trigger audio-visual overlays in OBS, neural Text-to-Speech (TTS), interactive minigames, Smart-Home lighting effects, n8n workflows, and real-time keyboard/mouse input trolls on the streamer's Gaming PC.
+**StreamGremlin** is a lightweight, database-free interactive stream companion designed for Twitch streamers. Viewers and moderators can trigger audio-visual overlays in OBS, Text-to-Speech (TTS), interactive minigames, Smart-Home lighting, n8n workflows, and keyboard/mouse effects on the Gaming PC.
 
 ### Core Highlights
 - **Zero Database (`config/config.yaml`)**: Everything is stored in a single human-readable YAML file with live hot-reloading.
 - **Rebuild-Safe Secrets & Sounds**:
-  - `.env` is automatically re-encrypted to `.env.age` using the public `age` key (`keys/age-public-key.txt`) whenever Twitch tokens or settings change in the Web UI.
-  - Custom audio files uploaded via the Web UI are saved directly into `sounds/` and tracked in Git (with 6 synthesized CC0 default sounds included out of the box).
-- **Industrial Broadcast Cockpit UI (`Anti-AI-UI`)**: High-density tactical interface with instant trigger matrix, simulator bar, live telemetry log, and prominent global `PANIC! STOP ALL` killswitch.
-- **100% Anti-Cheat-Safe Windows Companion Agent (`StreamGremlin.exe`)**: Pure userland keyboard/mouse synthesis (`pynput` + Win32 `SystemParametersInfoW`). Zero memory reading/writing, zero DLL injection, zero process scanning. Includes an emergency **Hardware Panic Switch (`ESC` 3x within 1.5s)**.
+  - `.env` is automatically re-encrypted to `.env.age` using the public `age` key (`keys/age-public-key.txt`) whenever settings change in the Web UI.
+  - Custom audio files uploaded via the Web UI are saved directly into `sounds/` and tracked in Git.
+- **Broadcast Cockpit UI**: Interface with instant trigger matrix, simulator bar, live telemetry log, and panic killswitch.
+- **Windows Companion Agent (`StreamGremlin.exe`)**: Keyboard/mouse simulation and desktop overlay. Includes an emergency **Hardware Panic Switch (`ESC` 3x within 1.5s)**.
 
 ---
 

@@ -955,44 +955,43 @@
           <div>
             <div class="panel">
               <div class="panel-head">
-                <span>Gaming-PC Companion Agent (Setup für Streamer)</span>
+                <span>Gaming-PC Companion Agent</span>
               </div>
               <div class="panel-body">
                 <div style="background: rgba(145, 70, 255, 0.1); border: 1px solid var(--accent-purple); border-radius: 4px; padding: 12px 14px; margin-bottom: 14px;">
-                  <div style="font-weight: 600; font-size: 13px; color: #e9d5ff; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
-                    <span>⚡ 1-Klick Komplettpaket (Empfohlen)</span>
+                  <div style="font-weight: 600; font-size: 13px; color: #e9d5ff; margin-bottom: 6px;">
+                    Komplettpaket für Windows
                   </div>
                   <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.5;">
-                    Enthält die fertige <code>StreamGremlin.exe</code>, deine bereits vorab personalisierte <code>agent_config.json</code>, eine 1-Klick-Autostart-Datei und die Anleitung. Kein manuelles Konfigurieren nötig!
+                    Enthält <code>StreamGremlin.exe</code>, die fertige <code>agent_config.json</code>, Autostart-Datei und Kurzanleitung.
                   </p>
                   <a class="btn btn-primary" href="/api/agent/bundle-download" style="text-decoration:none; font-weight:600; font-size:13px; display:inline-flex; align-items:center; gap:8px; padding:8px 16px;">
-                    <span>📦 StreamGremlin-Setup.zip herunterladen</span>
+                    <span>Download (StreamGremlin-Setup.zip)</span>
                   </a>
                 </div>
 
-                <div style="margin-bottom: 16px;">
-                  <div style="font-size: 12px; font-weight: 600; margin-bottom: 8px; color: var(--text-main);">Einfache 3-Schritte Anleitung für Streamer:</div>
+                <div style="margin-bottom: 14px;">
+                  <div style="font-size: 12px; font-weight: 600; margin-bottom: 6px; color: var(--text-main);">Kurzanleitung:</div>
                   <ol style="margin: 0; padding-left: 20px; font-size: 12px; line-height: 1.6; color: var(--text-muted);">
-                    <li><strong>Herunterladen & Entpacken:</strong> Lade das ZIP-Paket oben herunter und entpacke den Ordner an einen festen Ort auf deiner Festplatte (z.&nbsp;B. <code>C:\StreamGremlin</code> oder auf den Desktop).</li>
-                    <li><strong>Starten:</strong> Mache einen Doppelklick auf <code>StreamGremlin.exe</code>. In deiner Windows-Taskleiste (unten rechts beim Tray neben der Uhr) erscheint ein kleines Gremlin-Icon mit grünem Punkt. Fertig!</li>
-                    <li><strong>(Empfohlen) Autostart einrichten:</strong> Klicke einmalig auf <code>Autostart_Einrichten.bat</code>, damit StreamGremlin beim Hochfahren deines PCs immer automatisch im Hintergrund aktiv ist.</li>
+                    <li>ZIP-Paket herunterladen und entpacken.</li>
+                    <li><code>StreamGremlin.exe</code> starten (erscheint unten rechts im System-Tray).</li>
+                    <li>Optional: Einmalig auf <code>Autostart_Einrichten.bat</code> klicken für Autostart mit Windows.</li>
                   </ol>
                 </div>
 
-                <div style="background: var(--bg-input); border: 1px solid var(--border); border-radius: 4px; padding: 10px 12px; font-size: 11px; color: var(--text-muted); line-height: 1.5;">
-                  <div style="margin-bottom: 4px;">🛡️ <strong>100% Anti-Cheat-sicher:</strong> Verwendet hardwarenahe DirectInput Userland-Hooks ohne Treiber – sicher vor EAC, BattlEye, Vanguard & VAC.</div>
-                  <div style="margin-bottom: 4px;">🛑 <strong>Panik-Notaus:</strong> <strong>3x ESC</strong> innerhalb von 1,5 Sekunden bricht jeden aktiven Troll sofort ab.</div>
-                  <div>⚡ <strong>Automatisches Update:</strong> Künftige Versionen aktualisieren sich automatisch im Hintergrund, ohne dass du etwas neu herunterladen musst.</div>
+                <div style="background: var(--bg-input); border: 1px solid var(--border); border-radius: 4px; padding: 8px 12px; font-size: 11px; color: var(--text-muted); line-height: 1.5;">
+                  <div style="margin-bottom: 3px;"><strong>Notaus:</strong> <strong>3x ESC</strong> bricht alle aktiven Effekte sofort ab.</div>
+                  <div><strong>Updates:</strong> Werden automatisch im Hintergrund installiert.</div>
                 </div>
 
                 <details style="margin-top: 14px; font-size: 11px; color: var(--text-muted);">
-                  <summary style="cursor: pointer; user-select: none;">Erweiterte Optionen (Einzeldateien & PowerShell)</summary>
+                  <summary style="cursor: pointer; user-select: none;">Einzeldownloads & PowerShell</summary>
                   <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top: 8px;">
-                    <a class="btn" href="/api/agent/config-download" style="text-decoration:none; font-size:11px;">1. Konfiguration laden (agent_config.json)</a>
-                    <a class="btn" href="/api/agent/download" style="text-decoration:none; font-size:11px;">2. StreamGremlin.exe herunterladen</a>
+                    <a class="btn" href="/api/agent/config-download" style="text-decoration:none; font-size:11px;">Konfiguration (agent_config.json)</a>
+                    <a class="btn" href="/api/agent/download" style="text-decoration:none; font-size:11px;">Programm (StreamGremlin.exe)</a>
                   </div>
                   <div style="margin-top: 8px;">
-                    <div style="margin-bottom: 2px;">PowerShell 1-Liner Installer:</div>
+                    <div style="margin-bottom: 2px;">PowerShell-Befehl:</div>
                     <code style="background:var(--bg-card); padding:4px 8px; border-radius:3px; display:block; font-size:11px; word-break:break-all;" id="ps-install-cmd">irm https://example.com/api/agent/install.ps1 | iex</code>
                   </div>
                 </details>

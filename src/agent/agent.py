@@ -1,14 +1,8 @@
 """StreamGremlin Windows Companion Agent (StreamGremlin.exe).
 
-100% Anti-Cheat-Safe Userland Input Chaos & Desktop Overlay Agent:
-- Zero memory reading/writing, zero DLL injection, zero process inspection.
-- Uses standard Windows userland keyboard/mouse synthesis and hooks (pynput + ctypes User32).
-- Transparent Click-Through Desktop Overlay for Dual-Mode visual effects (Flashbang, Blackout, Tunnel Vision, Glitch, BSOD, Jumpscare, Matrix Rain, Bouncing Emotes).
-- Native Win32 Gamma Ramp (Hardware Flashbang/Blackout) & Magnification API (Color Invert).
-- Local Asynchronous Audio Playback (winsound).
-- Outbound WebSocket connection to StreamGremlin Hub with silent auto-reconnect.
-- Emergency Hardware Panic: Press ESC 3x within 1.5 seconds to immediately stop all effects.
-- Windows System Tray icon (Green = Connected, Red = Disconnected) with Status & Exit menu.
+- Windows input simulation and transparent desktop overlay.
+- Audio playback and hardware panic key (3x ESC).
+- System tray integration with automatic updates.
 """
 from __future__ import annotations
 
@@ -184,8 +178,7 @@ def set_win32_color_inversion(enable: bool) -> None:
 def send_hardware_scancode(key_target: Any, is_press: bool) -> None:
     """Send DirectInput Hardware Scancode via Win32 SendInput.
 
-    Ensures that games using DirectInput / RawInput under Anti-Cheat
-    (Easy Anti-Cheat, BattlEye, Vanguard, VAC) receive hardware-level keystrokes.
+    Sends keyboard events using DirectInput hardware scancodes.
     """
     if sys.platform != "win32":
         return
@@ -243,7 +236,7 @@ def send_hardware_scancode(key_target: Any, is_press: bool) -> None:
 
 
 # ==============================================================================
-# Input Chaos Controller (Anti-Cheat Safe Keyboard & Mouse Trolls)
+# Input Chaos Controller (Keyboard & Mouse Effects)
 # ==============================================================================
 class InputChaosController:
     """Manages overlapping userland keyboard and mouse troll effects safely."""
@@ -284,7 +277,7 @@ class InputChaosController:
         self._mouse_listener = mouse.Listener(on_move=self._on_mouse_move)
         self._mouse_listener.daemon = True
         self._mouse_listener.start()
-        logger.info("Userland keyboard/mouse listeners initialized (Anti-Cheat safe).")
+        logger.info("Keyboard and mouse listeners initialized.")
 
     def stop(self) -> None:
         self._running = False
@@ -1165,14 +1158,12 @@ def main() -> None:
     logger.info("Hub URL: %s", hub_url)
     logger.info("Privilege Level: %s", priv_info)
     logger.info("Auto-Update: %s", "Aktiviert" if auto_update else "Deaktiviert")
-    logger.info("Anti-Cheat Compatibility: 100% Userland Safe (Zero DLL injection, Zero memory hooks, DirectInput scancodes)")
     logger.info("Hardware Panic Hotkey: Press ESC 3x within 1.5s")
 
     print(f"=== StreamGremlin Companion Agent v{AGENT_VERSION} ===")
     print(f"Hub URL: {hub_url}")
     print(f"Privilege Level: {priv_info}")
     print(f"Auto-Update: {'Aktiviert' if auto_update else 'Deaktiviert'}")
-    print("Anti-Cheat Safety: 100% Userland Safe (Zero memory injection, DirectInput scancodes)")
     print("Emergency Panic Hotkey: Press ESC 3x within 1.5s")
 
     agent = StreamGremlinAgent(hub_url=hub_url, token=token, auto_update=auto_update)

@@ -574,35 +574,30 @@ pause
 """
 
     liesmich_txt = f"""===================================================================
- STREAMGREMLIN - GAMING-PC COMPANION AGENT (SETUP-ANLEITUNG)
+ STREAMGREMLIN - GAMING-PC COMPANION AGENT
 ===================================================================
 
 Schritt 1:
   Kopiere diesen gesamten Ordner an einen festen Ort auf deiner Festplatte
-  (z. B. 'C:\\Tools\\StreamGremlin' oder 'D:\\StreamGremlin').
+  (z. B. 'C:\\Tools\\StreamGremlin').
 
 Schritt 2:
   Doppelklicke auf 'StreamGremlin.exe'.
-  -> Im System-Tray (unten rechts neben der Uhr) erscheint ein kleines
-     Gremlin-Symbol mit einem GRUENEN Punkt.
-  -> Das bedeutet: Du bist live mit dem Stream verbunden!
+  -> Im System-Tray (unten rechts neben der Uhr) erscheint das Gremlin-Symbol
+     mit einem gruenen Punkt.
 
-Schritt 3 (Empfohlen):
-  Doppelklicke auf 'Autostart_Einrichten.bat'.
-  -> Ab jetzt startet StreamGremlin automatisch mit deinem PC.
+Schritt 3 (Optional):
+  Doppelklicke auf 'Autostart_Einrichten.bat', damit StreamGremlin
+  beim Hochfahren von Windows automatisch startet.
 
 -------------------------------------------------------------------
-Tipps & Notfall-Schalter im Spiel:
+Hinweise:
 -------------------------------------------------------------------
-* Notfall-Notaus:
-  Falls ein Troll im unguenstigsten Moment kommt (z. B. im Ranked-Endgame):
-  Druecke einfach 3x die Taste ESC innerhalb von 1,5 Sekunden.
-  Alle Tastensperren und Maus-Effekte werden sofort abgebrochen!
+* Notaus:
+  3x ESC innerhalb von 1.5 Sekunden bricht alle aktiven Trolls sofort ab.
 
-* Keine Updates mehr noetig:
-  StreamGremlin besitzt einen automatischen Hintergrund-Updater.
-  Sobald neue Features verfuegbar sind, aktualisiert sich die EXE
-  ganz von alleine.
+* Updates:
+  StreamGremlin aktualisiert sich bei Bedarf automatisch im Hintergrund.
 ===================================================================
 """
 

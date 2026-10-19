@@ -581,7 +581,7 @@ class WebSocketHub:
 
             asyncio.create_task(_bomb_timer())
 
-        # --- 4. GAMING-PC AGENT INPUT TROLLS (100% Anti-Cheat Safe) ---
+        # --- 4. GAMING-PC AGENT INPUT TROLLS ---
         elif act_type in (
             "invert_keys",
             "invert_ws",
