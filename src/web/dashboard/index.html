@@ -969,7 +969,7 @@
       <div class="panel-body">
         <input type="hidden" id="trig-edit-index" value="-1" />
         <div id="trig-streamer-notice" style="display:none; background:rgba(124, 58, 237, 0.15); border:1px solid var(--accent-purple); border-radius:4px; padding:10px; margin-bottom:12px; font-size:12px; color:var(--text-main);">
-          <strong>💡 Instanz-Cooldown anpassen:</strong> Globale Trigger-Aktionen werden zentral vom Admin gepflegt. Du kannst hier den <strong>Cooldown (Sekunden)</strong> individuell für deinen Stream einstellen.
+          <strong>💡 Trigger & Preis für deine Instanz anpassen:</strong> Du bestimmst hier, <strong>wie</strong> das Event ausgelöst wird (Chat-Befehl, Kanalpunkte, Bits), den <strong>Preis/Kosten</strong>, das Schlagwort, berechtigte <strong>Rollen</strong> und den <strong>Cooldown</strong>. Die Aktionen (Sounds & Overlay-Effekte) werden zentral vom Admin bereitgestellt.
         </div>
         <div class="grid-equal">
           <div class="form-row">
@@ -977,7 +977,7 @@
             <input type="text" id="trig-name" placeholder="z.B. Flashbang" />
           </div>
           <div class="form-row">
-            <label class="form-label">Trigger-Typ</label>
+            <label class="form-label">Trigger-Typ (Wie wird es gestartet?)</label>
             <select id="trig-type">
               <option value="command">Chat-Befehl (z.B. !bonk)</option>
               <option value="chat_word">Wort im Chat</option>
@@ -1007,7 +1007,7 @@
 
         <div class="grid-equal">
           <div class="form-row">
-            <label class="form-label">Kanalpunkte / Bits</label>
+            <label class="form-label">Preis (Kanalpunkte / Bits)</label>
             <input type="number" id="trig-cost" value="1000" />
           </div>
           <div class="form-row">
@@ -1026,8 +1026,11 @@
           </select>
         </div>
 
-        <div style="border-top:1px solid var(--border); padding-top:12px; margin-top:8px;">
-          <div class="form-label">Aktionen:</div>
+        <div id="trig-actions-container" style="border-top:1px solid var(--border); padding-top:12px; margin-top:8px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <div class="form-label" style="margin-bottom:0;">Aktionen & Effekte:</div>
+            <span id="trig-actions-lock-badge" class="badge" style="display:none; background:var(--bg-elevated); border:1px solid var(--border); color:var(--text-muted); font-size:10px;">🔒 Zentral vom Admin verwaltet</span>
+          </div>
           <div class="grid-equal">
             <div class="form-row">
               <label class="form-label">Sound-Dateien (Zufallspool, Kommagetrennt)</label>
@@ -1261,29 +1264,47 @@
         tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">Keine Trigger vorhanden.</td></tr>';
         return;
       }
-      tbody.innerHTML = triggers.map((t, idx) => `
-        <tr>
-          <td>
-            <input type="checkbox" ${t.enabled !== false ? 'checked' : ''} onchange="toggleTriggerEnabled(${idx}, this.checked)" />
-          </td>
-          <td><strong>${t.name || t.title || t.id}</strong></td>
-          <td><span class="mono">${t.type}</span></td>
-          <td><span class="mono">${t.pattern || (t.cost ? t.cost + ' Pkt.' : '-')}</span></td>
-          <td>
-            ${t.is_custom_cooldown
-              ? `<span class="badge" style="background:var(--accent-purple); color:#fff; font-size:11px;" title="Individueller Cooldown für diese Instanz">${t.cooldown_sec}s (eigen)</span>`
-              : `<span class="mono">${t.cooldown_sec || 5}s</span>`
-            }
-          </td>
-          <td><span class="mono">${t.match_mode || 'word'}</span></td>
-          <td><span class="mono">${(t.allowed_roles || ['everyone']).join(', ')}</span></td>
-          <td><span class="mono">${(t.actions || []).map(a => a.type).join(', ')}</span></td>
-          <td>
-            <button class="btn" style="padding:3px 7px; margin-right:4px;" onclick="editTrigger(${idx})">${currentRole === 'admin' ? 'Edit' : 'Cooldown'}</button>
-            ${currentRole === 'admin' ? `<button class="btn btn-danger" style="padding:3px 7px;" onclick="deleteTrigger(${idx})">Del</button>` : ''}
-          </td>
-        </tr>
-      `).join('');
+      const prefix = (appConfig.general && appConfig.general.prefix) || '!';
+      tbody.innerHTML = triggers.map((t, idx) => {
+        let patternCostStr = '-';
+        if (t.type === 'channel_point') {
+          patternCostStr = `${t.title || t.pattern || 'Kanalpunkte'} (${t.cost ? t.cost + ' Pkt.' : '0 Pkt.'})`;
+        } else if (t.type === 'bits') {
+          patternCostStr = `${t.pattern ? t.pattern + ' · ' : ''}${t.cost || 0} Bits`;
+        } else if (t.type === 'command') {
+          patternCostStr = `${prefix}${t.pattern || '-'}`;
+        } else {
+          patternCostStr = t.pattern || (t.cost ? t.cost + ' Pkt.' : '-');
+        }
+
+        const customBadge = (t.is_custom || t.is_custom_cooldown)
+          ? `<span class="badge" style="background:var(--accent-purple); color:#fff; font-size:10px; margin-left:5px;" title="Individuell für diese Instanz angepasst">eigen</span>`
+          : '';
+
+        return `
+          <tr>
+            <td>
+              <input type="checkbox" ${t.enabled !== false ? 'checked' : ''} onchange="toggleTriggerEnabled(${idx}, this.checked)" />
+            </td>
+            <td><strong>${t.name || t.title || t.id}</strong>${customBadge}</td>
+            <td><span class="mono">${t.type}</span></td>
+            <td><span class="mono">${patternCostStr}</span></td>
+            <td>
+              ${t.is_custom_cooldown
+                ? `<span class="badge" style="background:var(--accent-purple); color:#fff; font-size:11px;" title="Individueller Cooldown">${t.cooldown_sec}s</span>`
+                : `<span class="mono">${t.cooldown_sec || 5}s</span>`
+              }
+            </td>
+            <td><span class="mono">${t.match_mode || 'word'}</span></td>
+            <td><span class="mono">${(t.allowed_roles || ['everyone']).join(', ')}</span></td>
+            <td><span class="mono">${(t.actions || []).map(a => a.type).join(', ')}</span></td>
+            <td>
+              <button class="btn" style="padding:3px 7px; margin-right:4px;" onclick="editTrigger(${idx})">${currentRole === 'admin' ? 'Edit' : 'Anpassen'}</button>
+              ${currentRole === 'admin' ? `<button class="btn btn-danger" style="padding:3px 7px;" onclick="deleteTrigger(${idx})">Del</button>` : ''}
+            </td>
+          </tr>
+        `;
+      }).join('');
     }
 
     function populateSettingsForm() {
@@ -1514,14 +1535,23 @@
       const isStreamer = (currentRole === 'streamer');
       const notice = document.getElementById('trig-streamer-notice');
       if (notice) notice.style.display = isStreamer ? 'block' : 'none';
+      const lockBadge = document.getElementById('trig-actions-lock-badge');
+      if (lockBadge) lockBadge.style.display = isStreamer ? 'inline-block' : 'none';
 
-      ['trig-name', 'trig-type', 'trig-pattern', 'trig-match-mode', 'trig-cost', 'trig-role', 'trig-sounds', 'trig-visual', 'trig-agent', 'trig-duration'].forEach(id => {
+      // Streamer can edit trigger activation type, pattern/title, cost, roles, matching and cooldown
+      ['trig-name', 'trig-type', 'trig-pattern', 'trig-match-mode', 'trig-cost', 'trig-role', 'trig-cd'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = false;
+      });
+
+      // Actions section (sounds, visuals, agent) is centrally controlled by Admin
+      ['trig-sounds', 'trig-visual', 'trig-agent', 'trig-duration'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.disabled = isStreamer;
       });
 
       document.getElementById('modal-title-trigger').innerText = isStreamer
-        ? `Cooldown für '${t.name || t.id}' anpassen`
+        ? `Trigger-Start & Preis für '${t.name || t.id}' anpassen`
         : 'Trigger bearbeiten (Global)';
 
       document.getElementById('trigger-modal').style.display = 'flex';
@@ -1529,11 +1559,37 @@
 
     async function saveTriggerFromModal() {
       const idx = parseInt(document.getElementById('trig-edit-index').value);
-      const cd = parseInt(document.getElementById('trig-cd').value) || 10;
 
       if (currentRole === 'streamer') {
         if (idx >= 0 && appConfig.triggers && appConfig.triggers[idx]) {
-          appConfig.triggers[idx].cooldown_sec = cd;
+          const t = appConfig.triggers[idx];
+          const type = document.getElementById('trig-type').value;
+          const patternVal = document.getElementById('trig-pattern').value.trim();
+          const costVal = parseInt(document.getElementById('trig-cost').value) || 0;
+          const cdVal = parseInt(document.getElementById('trig-cd').value) || 10;
+          const roleVal = document.getElementById('trig-role').value;
+          const matchModeVal = document.getElementById('trig-match-mode').value;
+          const nameVal = document.getElementById('trig-name').value.trim() || t.name;
+
+          t.name = nameVal;
+          t.type = type;
+          if (type === 'channel_point') {
+            t.title = patternVal;
+            t.pattern = '';
+            t.cost = costVal;
+          } else if (type === 'bits') {
+            t.pattern = patternVal;
+            t.title = '';
+            t.cost = costVal;
+          } else {
+            t.pattern = patternVal;
+            t.title = '';
+            if (costVal > 0) t.cost = costVal;
+          }
+          t.match_mode = matchModeVal;
+          t.allowed_roles = [roleVal];
+          t.cooldown_sec = cdVal;
+
           const res = await fetch('/api/config', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -1542,7 +1598,7 @@
           if (res.ok) {
             const data = await res.json();
             if (data.config) appConfig = data.config;
-            showToast('Instanz-Cooldown gespeichert');
+            showToast('Instanz-Einstellungen gespeichert');
             closeTriggerModal();
             renderTriggersTable();
             renderTriggerPads();

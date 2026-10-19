@@ -111,20 +111,28 @@ def run_tests() -> None:
             )
             assert r_wh.status_code == 200 and r_wh.json()["ok"] is True
 
-            # 5. Test Streamer Instance Cooldown Overrides Isolation
+            # 5. Test Streamer Instance Trigger Start, Cost & Cooldown Overrides Isolation
             # Streamer login (password was updated to new_streamer_pw in step 1)
             r_s_login = client.post("/api/auth/login", json={"password": "new_streamer_pw"})
             assert r_s_login.status_code == 200 and r_s_login.json()["role"] == "streamer"
 
-            # Streamer adjusts trigger cooldown
+            # Streamer adjusts trigger start, price/cost, and cooldown
             orig_triggers = r_cfg.json()["config"]["triggers"]
             target_trigger = orig_triggers[0]
             target_id = target_trigger["id"]
             orig_cd = target_trigger.get("cooldown_sec", 5)
+            orig_type = target_trigger.get("type", "command")
 
             update_payload = {
                 "triggers": [
-                    {"id": target_id, "cooldown_sec": orig_cd + 37, "enabled": True}
+                    {
+                        "id": target_id,
+                        "type": "channel_point",
+                        "title": "Custom Reward Title",
+                        "cost": 3500,
+                        "cooldown_sec": orig_cd + 37,
+                        "enabled": True,
+                    }
                 ]
             }
             r_put = client.put("/api/config", json=update_payload)
@@ -135,18 +143,25 @@ def run_tests() -> None:
             import yaml
             overrides_data = yaml.safe_load(config_manager.overrides_path.read_text(encoding="utf-8"))
             assert overrides_data["triggers"][target_id]["cooldown_sec"] == orig_cd + 37
+            assert overrides_data["triggers"][target_id]["cost"] == 3500
+            assert overrides_data["triggers"][target_id]["type"] == "channel_point"
+            assert overrides_data["triggers"][target_id]["title"] == "Custom Reward Title"
 
-            # Base config on disk must still have original cooldown
+            # Base config on disk must still have original cooldown and type
             raw_base_yaml = yaml.safe_load(config_manager.config_path.read_text(encoding="utf-8"))
             base_trigger = next(t for t in raw_base_yaml["triggers"] if t["id"] == target_id)
             assert base_trigger.get("cooldown_sec", 5) == orig_cd
+            assert base_trigger.get("type") == orig_type
 
-            # Merged config returned to streamer must show overridden cooldown
+            # Merged config returned to streamer must show overridden cooldown, cost, and type
             r_s_cfg = client.get("/api/config")
             s_trig = next(t for t in r_s_cfg.json()["config"]["triggers"] if t["id"] == target_id)
             assert s_trig["cooldown_sec"] == orig_cd + 37
-            assert s_trig.get("is_custom_cooldown") is True
-            print("[PASS] Streamer instance cooldown overrides and isolation verified.")
+            assert s_trig["cost"] == 3500
+            assert s_trig["type"] == "channel_point"
+            assert s_trig["title"] == "Custom Reward Title"
+            assert s_trig.get("is_custom") is True
+            print("[PASS] Streamer instance trigger start, price/cost, and cooldown overrides verified.")
 
         print("[PASS] All FastAPI endpoints, Simulator, Panic, and n8n Webhook verified.")
     finally:

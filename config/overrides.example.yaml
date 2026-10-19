@@ -2,8 +2,10 @@
 # Diese Datei wird automatisch von StreamGremlin für jede Instanz erzeugt:
 # z. B. config/overrides.jonisdaily.yaml oder config/overrides.niggephotography.yaml
 #
-# Streamer können darin trigger-spezifische Cooldowns oder Aktivierungs-Zustände
-# überschreiben, ohne die globale config.yaml zu verändern.
+# Streamer können darin festlegen, WIE ein Event bei ihnen ausgelöst wird
+# (Typ: Command / Kanalpunkte / Bits, Befehlsname / Titel, Preis / Kosten,
+# Cooldown, Rollen, Aktivierung), ohne die globalen Effekte/Aktionen in
+# der gemeinsamen config.yaml zu verändern.
 
 general:
   global_cooldown_sec: 3
@@ -11,5 +13,16 @@ general:
 
 triggers:
   cmd_bonk:
+    type: command
+    pattern: bonk
     cooldown_sec: 25
+    enabled: true
+    allowed_roles:
+      - everyone
+
+  cp_flashbang:
+    type: channel_point
+    title: Flashbang werfen
+    cost: 2500
+    cooldown_sec: 45
     enabled: true

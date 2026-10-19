@@ -215,7 +215,7 @@ class ConfigManager:
             if "user_cooldown_sec" in gen_ovr and gen_ovr["user_cooldown_sec"] is not None:
                 gen["user_cooldown_sec"] = int(gen_ovr["user_cooldown_sec"])
 
-        # 2. Trigger-Cooldowns & Enabled-Status
+        # 2. Trigger-Overrides (Instanz-spezifisch: Start-Art, Preis, Cooldown, Rollen, Aktivierung)
         trig_ovr = overrides.get("triggers", {})
         if isinstance(trig_ovr, dict):
             for t in cfg.get("triggers", []):
@@ -223,12 +223,43 @@ class ConfigManager:
                 if t_id and t_id in trig_ovr:
                     ovr_entry = trig_ovr[t_id]
                     if isinstance(ovr_entry, dict):
-                        if "cooldown_sec" in ovr_entry and ovr_entry["cooldown_sec"] is not None:
-                            t["cooldown_sec"] = int(ovr_entry["cooldown_sec"])
-                            t["is_custom_cooldown"] = True
+                        has_custom = False
                         if "enabled" in ovr_entry and ovr_entry["enabled"] is not None:
                             t["enabled"] = bool(ovr_entry["enabled"])
-                            t["is_custom_enabled"] = True
+                            has_custom = True
+                        if "name" in ovr_entry and ovr_entry["name"]:
+                            t["name"] = str(ovr_entry["name"]).strip()
+                            has_custom = True
+                        if "type" in ovr_entry and ovr_entry["type"]:
+                            t["type"] = str(ovr_entry["type"]).strip()
+                            has_custom = True
+                        if "pattern" in ovr_entry:
+                            t["pattern"] = str(ovr_entry["pattern"]).strip() if ovr_entry["pattern"] is not None else ""
+                            has_custom = True
+                        if "title" in ovr_entry:
+                            t["title"] = str(ovr_entry["title"]).strip() if ovr_entry["title"] is not None else ""
+                            has_custom = True
+                        if "cost" in ovr_entry and ovr_entry["cost"] is not None:
+                            try:
+                                t["cost"] = int(ovr_entry["cost"])
+                                has_custom = True
+                            except (ValueError, TypeError):
+                                pass
+                        if "match_mode" in ovr_entry and ovr_entry["match_mode"]:
+                            t["match_mode"] = str(ovr_entry["match_mode"]).strip()
+                            has_custom = True
+                        if "allowed_roles" in ovr_entry and isinstance(ovr_entry["allowed_roles"], list):
+                            t["allowed_roles"] = ovr_entry["allowed_roles"]
+                            has_custom = True
+                        if "cooldown_sec" in ovr_entry and ovr_entry["cooldown_sec"] is not None:
+                            try:
+                                t["cooldown_sec"] = int(ovr_entry["cooldown_sec"])
+                                t["is_custom_cooldown"] = True
+                                has_custom = True
+                            except (ValueError, TypeError):
+                                pass
+                        if has_custom:
+                            t["is_custom"] = True
         return cfg
 
     def _validate_and_normalize(self, data: dict[str, Any]) -> dict[str, Any]:
@@ -321,7 +352,7 @@ class ConfigManager:
             if "user_cooldown_sec" in gen and gen["user_cooldown_sec"] is not None:
                 existing_gen["user_cooldown_sec"] = int(gen["user_cooldown_sec"])
 
-        # 2. Trigger-spezifische Cooldowns & Enabled Flags
+        # 2. Trigger-spezifische Einstellungen (Typ, Preis/Kosten, Muster, Cooldown, Rollen, Aktivierung)
         trig_list = payload.get("triggers", [])
         if isinstance(trig_list, list):
             existing_trigs = existing.setdefault("triggers", {})
@@ -330,10 +361,30 @@ class ConfigManager:
                     continue
                 t_id = t["id"]
                 trig_ovr = existing_trigs.setdefault(t_id, {})
-                if "cooldown_sec" in t and t["cooldown_sec"] is not None:
-                    trig_ovr["cooldown_sec"] = int(t["cooldown_sec"])
                 if "enabled" in t and t["enabled"] is not None:
                     trig_ovr["enabled"] = bool(t["enabled"])
+                if "name" in t and t["name"]:
+                    trig_ovr["name"] = str(t["name"]).strip()
+                if "type" in t and t["type"]:
+                    trig_ovr["type"] = str(t["type"]).strip()
+                if "pattern" in t:
+                    trig_ovr["pattern"] = str(t["pattern"]).strip() if t["pattern"] is not None else ""
+                if "title" in t:
+                    trig_ovr["title"] = str(t["title"]).strip() if t["title"] is not None else ""
+                if "cost" in t and t["cost"] is not None:
+                    try:
+                        trig_ovr["cost"] = int(t["cost"])
+                    except (ValueError, TypeError):
+                        pass
+                if "match_mode" in t and t["match_mode"]:
+                    trig_ovr["match_mode"] = str(t["match_mode"]).strip()
+                if "allowed_roles" in t and isinstance(t["allowed_roles"], list):
+                    trig_ovr["allowed_roles"] = t["allowed_roles"]
+                if "cooldown_sec" in t and t["cooldown_sec"] is not None:
+                    try:
+                        trig_ovr["cooldown_sec"] = int(t["cooldown_sec"])
+                    except (ValueError, TypeError):
+                        pass
 
         yaml_text = yaml.safe_dump(
             existing,
