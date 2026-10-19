@@ -955,19 +955,47 @@
           <div>
             <div class="panel">
               <div class="panel-head">
-                <span>Gaming-PC Companion Agent</span>
+                <span>Gaming-PC Companion Agent (Setup für Streamer)</span>
               </div>
               <div class="panel-body">
-                <p style="color:var(--text-muted); margin-bottom:12px; font-size:12px;">
-                  100% Anti-Cheat-sicher (reine Userland-Hooks). Hardware-Notaus jederzeit mit <strong>3x ESC</strong>.
-                </p>
-                <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                  <a class="btn btn-primary" href="/api/agent/config-download" style="text-decoration:none;">1. Konfiguration laden (agent_config.json)</a>
-                  <a class="btn" href="/api/agent/download" style="text-decoration:none;">2. StreamGremlin.exe herunterladen</a>
+                <div style="background: rgba(145, 70, 255, 0.1); border: 1px solid var(--accent-purple); border-radius: 4px; padding: 12px 14px; margin-bottom: 14px;">
+                  <div style="font-weight: 600; font-size: 13px; color: #e9d5ff; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+                    <span>⚡ 1-Klick Komplettpaket (Empfohlen)</span>
+                  </div>
+                  <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.5;">
+                    Enthält die fertige <code>StreamGremlin.exe</code>, deine bereits vorab personalisierte <code>agent_config.json</code>, eine 1-Klick-Autostart-Datei und die Anleitung. Kein manuelles Konfigurieren nötig!
+                  </p>
+                  <a class="btn btn-primary" href="/api/agent/bundle-download" style="text-decoration:none; font-weight:600; font-size:13px; display:inline-flex; align-items:center; gap:8px; padding:8px 16px;">
+                    <span>📦 StreamGremlin-Setup.zip herunterladen</span>
+                  </a>
                 </div>
-                <p style="color:var(--text-muted); margin-top:8px; font-size:11px;">
-                  Tipp: Speichere beide Dateien im selben Ordner auf deinem Gaming-PC. Künftige Updates werden automatisch im Hintergrund installiert.
-                </p>
+
+                <div style="margin-bottom: 16px;">
+                  <div style="font-size: 12px; font-weight: 600; margin-bottom: 8px; color: var(--text-main);">Einfache 3-Schritte Anleitung für Streamer:</div>
+                  <ol style="margin: 0; padding-left: 20px; font-size: 12px; line-height: 1.6; color: var(--text-muted);">
+                    <li><strong>Herunterladen & Entpacken:</strong> Lade das ZIP-Paket oben herunter und entpacke den Ordner an einen festen Ort auf deiner Festplatte (z.&nbsp;B. <code>C:\StreamGremlin</code> oder auf den Desktop).</li>
+                    <li><strong>Starten:</strong> Mache einen Doppelklick auf <code>StreamGremlin.exe</code>. In deiner Windows-Taskleiste (unten rechts beim Tray neben der Uhr) erscheint ein kleines Gremlin-Icon mit grünem Punkt. Fertig!</li>
+                    <li><strong>(Empfohlen) Autostart einrichten:</strong> Klicke einmalig auf <code>Autostart_Einrichten.bat</code>, damit StreamGremlin beim Hochfahren deines PCs immer automatisch im Hintergrund aktiv ist.</li>
+                  </ol>
+                </div>
+
+                <div style="background: var(--bg-input); border: 1px solid var(--border); border-radius: 4px; padding: 10px 12px; font-size: 11px; color: var(--text-muted); line-height: 1.5;">
+                  <div style="margin-bottom: 4px;">🛡️ <strong>100% Anti-Cheat-sicher:</strong> Verwendet hardwarenahe DirectInput Userland-Hooks ohne Treiber – sicher vor EAC, BattlEye, Vanguard & VAC.</div>
+                  <div style="margin-bottom: 4px;">🛑 <strong>Panik-Notaus:</strong> <strong>3x ESC</strong> innerhalb von 1,5 Sekunden bricht jeden aktiven Troll sofort ab.</div>
+                  <div>⚡ <strong>Automatisches Update:</strong> Künftige Versionen aktualisieren sich automatisch im Hintergrund, ohne dass du etwas neu herunterladen musst.</div>
+                </div>
+
+                <details style="margin-top: 14px; font-size: 11px; color: var(--text-muted);">
+                  <summary style="cursor: pointer; user-select: none;">Erweiterte Optionen (Einzeldateien & PowerShell)</summary>
+                  <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top: 8px;">
+                    <a class="btn" href="/api/agent/config-download" style="text-decoration:none; font-size:11px;">1. Konfiguration laden (agent_config.json)</a>
+                    <a class="btn" href="/api/agent/download" style="text-decoration:none; font-size:11px;">2. StreamGremlin.exe herunterladen</a>
+                  </div>
+                  <div style="margin-top: 8px;">
+                    <div style="margin-bottom: 2px;">PowerShell 1-Liner Installer:</div>
+                    <code style="background:var(--bg-card); padding:4px 8px; border-radius:3px; display:block; font-size:11px; word-break:break-all;" id="ps-install-cmd">irm https://example.com/api/agent/install.ps1 | iex</code>
+                  </div>
+                </details>
               </div>
             </div>
 
@@ -1417,6 +1445,9 @@
       document.getElementById('sec-webhook-token').value = sec.webhook_token || '';
       document.getElementById('sec-n8n-url').value = sec.n8n_webhook_url || '';
       document.getElementById('sec-ha-url').value = sec.ha_base_url || 'https://home.orfel.de';
+
+      const psEl = document.getElementById('ps-install-cmd');
+      if (psEl) psEl.textContent = `irm ${location.origin}/api/agent/install.ps1 | iex`;
     }
 
     // =========================================================================

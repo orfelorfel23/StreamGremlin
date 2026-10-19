@@ -4,12 +4,14 @@ Stellt das Dashboard (`/admin`), das transparente OBS-Overlay (`/overlay`),
 die REST-API, den n8n-Webhook und die Echtzeit-WebSockets bereit.
 """
 from contextlib import asynccontextmanager
+import io
 import json
 import logging
 import os
 from pathlib import Path
 import re
 from typing import Any
+import zipfile
 
 from fastapi import FastAPI, File, HTTPException, Request, Response, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
@@ -539,6 +541,136 @@ async def agent_script_download() -> Response:
             filename="StreamGremlin-Agent.py",
         )
     raise HTTPException(status_code=404, detail="Agent binary not found")
+
+
+@app.get("/api/agent/bundle-download")
+async def agent_bundle_download(request: Request) -> Response:
+    """Erstellt dynamisch ein fertiges Setup-ZIP mit EXE, vorkonfigurierter JSON, Autostart-Batch und DAU-Anleitung."""
+    auth_manager.require_roles(request, ["admin", "streamer"])
+    env = config_manager.read_env()
+    host = request.headers.get("host", "localhost:4736")
+    scheme = "wss" if request.url.scheme == "https" or "orfel.de" in host else "ws"
+    base_http = f"{'https' if scheme == 'wss' else 'http'}://{host}"
+
+    agent_cfg = {
+        "hub_url": base_http,
+        "token": env.get("AGENT_TOKEN", ""),
+        "auto_update": True,
+    }
+
+    autostart_bat = """@echo off
+chcp 65001 >nul
+echo Richte StreamGremlin im Windows-Autostart ein...
+set "TARGET=%~dp0StreamGremlin.exe"
+set "SHORTCUT=%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\StreamGremlin.lnk"
+
+powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('%SHORTCUT%'); $s.TargetPath = '%TARGET%'; $s.WorkingDirectory = '%~dp0'; $s.Save()"
+
+echo.
+echo [OK] StreamGremlin startet ab jetzt automatisch beim Hochfahren deines PCs!
+echo Du kannst dieses Fenster schliessen.
+echo.
+pause
+"""
+
+    liesmich_txt = f"""===================================================================
+ STREAMGREMLIN - GAMING-PC COMPANION AGENT (SETUP-ANLEITUNG)
+===================================================================
+
+Schritt 1:
+  Kopiere diesen gesamten Ordner an einen festen Ort auf deiner Festplatte
+  (z. B. 'C:\\Tools\\StreamGremlin' oder 'D:\\StreamGremlin').
+
+Schritt 2:
+  Doppelklicke auf 'StreamGremlin.exe'.
+  -> Im System-Tray (unten rechts neben der Uhr) erscheint ein kleines
+     Gremlin-Symbol mit einem GRUENEN Punkt.
+  -> Das bedeutet: Du bist live mit dem Stream verbunden!
+
+Schritt 3 (Empfohlen):
+  Doppelklicke auf 'Autostart_Einrichten.bat'.
+  -> Ab jetzt startet StreamGremlin automatisch mit deinem PC.
+
+-------------------------------------------------------------------
+Tipps & Notfall-Schalter im Spiel:
+-------------------------------------------------------------------
+* Notfall-Notaus:
+  Falls ein Troll im unguenstigsten Moment kommt (z. B. im Ranked-Endgame):
+  Druecke einfach 3x die Taste ESC innerhalb von 1,5 Sekunden.
+  Alle Tastensperren und Maus-Effekte werden sofort abgebrochen!
+
+* Keine Updates mehr noetig:
+  StreamGremlin besitzt einen automatischen Hintergrund-Updater.
+  Sobald neue Features verfuegbar sind, aktualisiert sich die EXE
+  ganz von alleine.
+===================================================================
+"""
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        # 1. agent_config.json
+        z.writestr("agent_config.json", json.dumps(agent_cfg, indent=2))
+
+        # 2. Autostart_Einrichten.bat
+        z.writestr("Autostart_Einrichten.bat", autostart_bat)
+
+        # 3. ANLEITUNG.txt
+        z.writestr("ANLEITUNG.txt", liesmich_txt)
+
+        # 4. StreamGremlin.exe
+        exe_path = REPO_ROOT / "dist" / "StreamGremlin.exe"
+        if exe_path.exists():
+            z.write(str(exe_path), arcname="StreamGremlin.exe")
+
+    buf.seek(0)
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="StreamGremlin-Setup.zip"'},
+    )
+
+
+@app.get("/api/agent/install.ps1")
+async def agent_powershell_installer(request: Request) -> Response:
+    """Liefert ein 1-Klick PowerShell-Installationsskript für den schnellen Setup."""
+    token = request.query_params.get("token")
+    if not token:
+        env = config_manager.read_env()
+        token = env.get("AGENT_TOKEN", "")
+    host = request.headers.get("host", "localhost:4736")
+    scheme = "wss" if request.url.scheme == "https" or "orfel.de" in host else "ws"
+    base_http = f"{'https' if scheme == 'wss' else 'http'}://{host}"
+
+    ps_script = f"""# StreamGremlin 1-Click Installer
+$ErrorActionPreference = "Stop"
+$dest = "$env:LOCALAPPDATA\\StreamGremlin"
+if (!(Test-Path $dest)) {{ New-Item -ItemType Directory -Path $dest -Force | Out-Null }}
+
+Write-Host "Lade StreamGremlin Companion Agent herunter..." -ForegroundColor Green
+Invoke-WebRequest -Uri "{base_http}/api/agent/download" -OutFile "$dest\\StreamGremlin.exe"
+
+$config = @{{
+    hub_url = "{base_http}"
+    token = "{token}"
+    auto_update = $true
+}} | ConvertTo-Json
+Set-Content -Path "$dest\\agent_config.json" -Value $config -Encoding UTF8
+
+$ws = New-Object -ComObject WScript.Shell
+$sc = $ws.CreateShortcut("$env:APPDATA\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\StreamGremlin.lnk")
+$sc.TargetPath = "$dest\\StreamGremlin.exe"
+$sc.WorkingDirectory = $dest
+$sc.Save()
+
+Write-Host "Starte StreamGremlin..." -ForegroundColor Green
+Start-Process "$dest\\StreamGremlin.exe" -WorkingDirectory $dest
+Write-Host "Fertig! StreamGremlin laeuft im System Tray und startet ab jetzt automatisch." -ForegroundColor Green
+"""
+    return Response(
+        content=ps_script,
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": 'inline; filename="install.ps1"'},
+    )
 
 
 # ==============================================================================
