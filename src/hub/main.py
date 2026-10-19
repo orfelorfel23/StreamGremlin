@@ -23,7 +23,7 @@ from src.hub.config_manager import ConfigManager
 from src.hub.sound_synth import ensure_default_sounds
 from src.hub.tts_service import TTSService
 from src.hub.twitch_client import TwitchManager
-from src.hub.ws_hub import AGENT_VERSION, WebSocketHub
+from src.hub.ws_hub import AGENT_VERSION, WebSocketHub, is_newer_version
 
 logging.basicConfig(
     level=logging.INFO,
@@ -55,7 +55,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="StreamGremlin Hub",
     description="Interactive Twitch Chat, Overlay & Input Chaos Engine",
-    version="1.0.0",
+    version="1.1.1",
     lifespan=lifespan,
 )
 
@@ -73,7 +73,7 @@ async def health_check() -> dict[str, Any]:
     return {
         "status": "ok",
         "service": "StreamGremlin",
-        "version": "1.0.0",
+        "version": "1.1.1",
         "port": 4736,
     }
 
@@ -716,11 +716,12 @@ async def ws_agent_endpoint(ws: WebSocket) -> None:
 
         authenticated = True
         client_ver = handshake.get("version", "1.0.0")
+        has_update = is_newer_version(AGENT_VERSION, client_ver)
         await ws.send_json({
             "status": "authenticated",
             "latest_version": AGENT_VERSION,
-            "update_available": client_ver != AGENT_VERSION,
-            "download_url": "/api/agent/download" if client_ver != AGENT_VERSION else None,
+            "update_available": has_update,
+            "download_url": "/api/agent/download" if has_update else None,
         })
         await ws_hub.connect_agent(
             ws,

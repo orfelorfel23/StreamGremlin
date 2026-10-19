@@ -23,7 +23,27 @@ from src.hub.automation import AutomationService
 
 logger = logging.getLogger("streamgremlin.ws_hub")
 
-AGENT_VERSION = "1.0.0"
+AGENT_VERSION = "1.1.1"
+
+
+def is_newer_version(latest: str, current: str) -> bool:
+    """Return True if latest version is strictly newer than current version."""
+    def _parse(v: str) -> tuple[int, ...]:
+        parts = []
+        for x in str(v).lstrip("v").split("."):
+            num = ""
+            for ch in x:
+                if ch.isdigit():
+                    num += ch
+                else:
+                    break
+            parts.append(int(num) if num else 0)
+        return tuple(parts)
+
+    try:
+        return _parse(latest) > _parse(current)
+    except Exception:
+        return False
 
 
 class WebSocketHub:

@@ -68,7 +68,27 @@ try:
 except Exception:
     pass
 
-AGENT_VERSION = "1.1.0"
+AGENT_VERSION = "1.1.1"
+
+
+def is_newer_version(remote: str, current: str) -> bool:
+    """Return True if remote version is strictly greater than current version."""
+    def _parse(v: str) -> tuple[int, ...]:
+        parts = []
+        for x in str(v).lstrip("v").split("."):
+            num = ""
+            for ch in x:
+                if ch.isdigit():
+                    num += ch
+                else:
+                    break
+            parts.append(int(num) if num else 0)
+        return tuple(parts)
+
+    try:
+        return _parse(remote) > _parse(current)
+    except Exception:
+        return False
 
 # Win32 Constants
 SPI_GETMOUSESPEED = 0x0070
@@ -850,19 +870,26 @@ class StreamGremlinAgent:
 
         logger.info("Update binary verified (%d bytes). Spawning detached updater batch process...", tmp_exe.stat().st_size)
 
-        # Generate self-replacing batch script with retry loop
+        # Generate self-replacing batch script with retry loop and clean PyInstaller environment
+        target_dir = target_exe.parent
         bat_script = f"""@echo off
-timeout /t 1 /nobreak >nul
+set _MEIPASS2=
+set _MEIPASS=
+timeout /t 2 /nobreak >nul
 :retry
 move /y "{tmp_exe}" "{target_exe}" >nul 2>&1
 if errorlevel 1 (
     timeout /t 1 /nobreak >nul
     goto retry
 )
-start "" "{target_exe}"
+start "" /d "{target_dir}" "{target_exe}"
 del "%~f0"
 """
         bat_file.write_text(bat_script, encoding="utf-8")
+
+        clean_env = os.environ.copy()
+        clean_env.pop("_MEIPASS2", None)
+        clean_env.pop("_MEIPASS", None)
 
         DETACHED_PROCESS = 0x00000008
         CREATE_NO_WINDOW = 0x08000000
@@ -870,6 +897,7 @@ del "%~f0"
             ["cmd.exe", "/c", str(bat_file)],
             creationflags=DETACHED_PROCESS | CREATE_NO_WINDOW,
             close_fds=True,
+            env=clean_env,
         )
 
         # Gracefully shut down current instance
@@ -926,7 +954,7 @@ del "%~f0"
                     data = resp.json()
                     remote_ver = str(data.get("latest_version") or data.get("version") or AGENT_VERSION)
                     dl_url = str(data.get("download_url") or "/api/agent/download")
-                    if remote_ver != AGENT_VERSION:
+                    if is_newer_version(remote_ver, AGENT_VERSION):
                         self.update_available = remote_ver
                         self.download_url = dl_url
                         logger.warning(
@@ -971,13 +999,14 @@ del "%~f0"
 
                     if auth_resp.get("update_available"):
                         remote_ver = str(auth_resp.get("latest_version") or AGENT_VERSION)
-                        self.update_available = remote_ver
-                        self.download_url = str(auth_resp.get("download_url") or "/api/agent/download")
-                        logger.warning("Hub reports newer Agent version v%s available.", remote_ver)
-                        self._notify_update_available(remote_ver)
-                        if self.auto_update:
-                            logger.info("Auto-update enabled: triggering automatic background update in 2s...")
-                            threading.Thread(target=self.perform_self_update, daemon=True).start()
+                        if is_newer_version(remote_ver, AGENT_VERSION):
+                            self.update_available = remote_ver
+                            self.download_url = str(auth_resp.get("download_url") or "/api/agent/download")
+                            logger.warning("Hub reports newer Agent version v%s available.", remote_ver)
+                            self._notify_update_available(remote_ver)
+                            if self.auto_update:
+                                logger.info("Auto-update enabled: triggering automatic background update in 2s...")
+                                threading.Thread(target=self.perform_self_update, daemon=True).start()
 
                     self._ws = ws
                     self._set_connected(True)
