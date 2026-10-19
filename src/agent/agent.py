@@ -21,7 +21,9 @@ import logging
 import math
 import os
 import random
+import subprocess
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -739,13 +741,16 @@ class DesktopVisualOverlay:
 # Main Companion Agent
 # ==============================================================================
 class StreamGremlinAgent:
-    """Main Companion Agent coordinating WebSocket, Local Audio, Input Chaos & Desktop Overlay."""
+    """Main Companion Agent coordinating WebSocket, Local Audio, Input Chaos, Overlay & Auto-Update."""
 
-    def __init__(self, hub_url: str, token: str) -> None:
+    def __init__(self, hub_url: str, token: str, auto_update: bool = True) -> None:
         self.hub_url = hub_url.rstrip("/")
         self.token = token
+        self.auto_update = auto_update
         self.connected = False
         self.update_available: Optional[str] = None
+        self.download_url: str = "/api/agent/download"
+        self._updating: bool = False
         self._stop_event = threading.Event()
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._ws: Optional[Any] = None
@@ -796,8 +801,130 @@ class StreamGremlinAgent:
 
         threading.Thread(target=_play_worker, daemon=True).start()
 
+    def perform_self_update(self) -> bool:
+        """Download latest StreamGremlin.exe and execute atomic self-replacement via detached helper."""
+        if self._updating:
+            return False
+        self._updating = True
+
+        is_frozen = getattr(sys, "frozen", False)
+        if not is_frozen:
+            logger.info("Running from source (python script). Auto-updater only replaces compiled executables.")
+            self._updating = False
+            return False
+
+        target_exe = Path(sys.executable).resolve()
+        tmp_exe = target_exe.with_name(f"{target_exe.stem}_new.exe")
+        bat_file = Path(tempfile.gettempdir()) / f"sg_update_{os.getpid()}.bat"
+
+        logger.info("Starting self-update: downloading latest binary from %s...", self.hub_url)
+        if HAS_TRAY and self.tray_icon:
+            try:
+                self.tray_icon.title = "StreamGremlin (Update wird heruntergeladen...)"
+            except Exception:
+                pass
+
+        dl_url = f"{self.hub_url}{self.download_url}" if self.download_url.startswith("/") else self.download_url
+        try:
+            with httpx.Client(timeout=60.0, follow_redirects=True) as client:
+                with client.stream("GET", dl_url) as resp:
+                    if resp.status_code != 200:
+                        logger.error("Download failed with HTTP %d", resp.status_code)
+                        self._updating = False
+                        return False
+                    with open(tmp_exe, "wb") as f:
+                        for chunk in resp.iter_bytes(chunk_size=65536):
+                            f.write(chunk)
+        except Exception as exc:
+            logger.error("Download error during update: %s", exc)
+            tmp_exe.unlink(missing_ok=True)
+            self._updating = False
+            return False
+
+        # Validate downloaded file
+        if not tmp_exe.exists() or tmp_exe.stat().st_size < 1_000_000:
+            logger.error("Downloaded update file is too small or missing.")
+            tmp_exe.unlink(missing_ok=True)
+            self._updating = False
+            return False
+
+        with open(tmp_exe, "rb") as f:
+            if f.read(2) != b"MZ":
+                logger.error("Downloaded file is not a valid PE executable.")
+                tmp_exe.unlink(missing_ok=True)
+                self._updating = False
+                return False
+
+        logger.info("Update binary verified (%d bytes). Spawning detached updater batch process...", tmp_exe.stat().st_size)
+
+        # Generate self-replacing batch script with retry loop
+        bat_script = f"""@echo off
+timeout /t 1 /nobreak >nul
+:retry
+move /y "{tmp_exe}" "{target_exe}" >nul 2>&1
+if errorlevel 1 (
+    timeout /t 1 /nobreak >nul
+    goto retry
+)
+start "" "{target_exe}"
+del "%~f0"
+"""
+        bat_file.write_text(bat_script, encoding="utf-8")
+
+        DETACHED_PROCESS = 0x00000008
+        CREATE_NO_WINDOW = 0x08000000
+        subprocess.Popen(
+            ["cmd.exe", "/c", str(bat_file)],
+            creationflags=DETACHED_PROCESS | CREATE_NO_WINDOW,
+            close_fds=True,
+        )
+
+        # Gracefully shut down current instance
+        self.chaos.stop()
+        if HAS_TRAY and self.tray_icon:
+            try:
+                self.tray_icon.stop()
+            except Exception:
+                pass
+        os._exit(0)
+
+    def _notify_update_available(self, version: str) -> None:
+        if not HAS_TRAY or not self.tray_icon:
+            return
+        try:
+            self.tray_icon.menu = self._build_tray_menu()
+            self.tray_icon.notify(
+                f"Version v{version} steht bereit! Klicke im Menü zum Aktualisieren.",
+                "StreamGremlin Update verfügbar",
+            )
+        except Exception as exc:
+            logger.debug("Tray update notification failed: %s", exc)
+
+    def _build_tray_menu(self) -> Any:
+        if not HAS_TRAY:
+            return None
+
+        def on_panic(icon, item):
+            self.chaos.panic_reset(notify_hub=True)
+
+        def on_exit(icon, item):
+            self._stop_event.set()
+            self.chaos.stop()
+            icon.stop()
+
+        items = []
+        if self.update_available:
+            def on_update_click(icon, item):
+                threading.Thread(target=self.perform_self_update, daemon=True).start()
+            items.append(pystray.MenuItem(f"⚡ Update auf v{self.update_available} installieren", on_update_click))
+            items.append(pystray.Menu.SEPARATOR)
+
+        items.append(pystray.MenuItem("PANIC! Reset Inputs (ESC 3x)", on_panic))
+        items.append(pystray.MenuItem("Beenden", on_exit))
+        return pystray.Menu(*items)
+
     async def check_for_updates(self) -> None:
-        """Query GET /api/agent/version on startup."""
+        """Query GET /api/agent/version on startup and periodically."""
         url = f"{self.hub_url}/api/agent/version"
         try:
             async with httpx.AsyncClient(timeout=6.0) as client:
@@ -805,13 +932,20 @@ class StreamGremlinAgent:
                 if resp.status_code == 200:
                     data = resp.json()
                     remote_ver = str(data.get("latest_version") or data.get("version") or AGENT_VERSION)
+                    dl_url = str(data.get("download_url") or "/api/agent/download")
                     if remote_ver != AGENT_VERSION:
                         self.update_available = remote_ver
+                        self.download_url = dl_url
                         logger.warning(
                             "New StreamGremlin Agent version available: v%s (current: v%s).",
                             remote_ver,
                             AGENT_VERSION,
                         )
+                        self._notify_update_available(remote_ver)
+                        if self.auto_update:
+                            logger.info("Auto-update enabled: triggering automatic background update in 2s...")
+                            await asyncio.sleep(2.0)
+                            threading.Thread(target=self.perform_self_update, daemon=True).start()
         except Exception as exc:
             logger.debug("Update check skipped/failed: %s", exc)
 
@@ -842,6 +976,16 @@ class StreamGremlinAgent:
                         await asyncio.sleep(8)
                         continue
 
+                    if auth_resp.get("update_available"):
+                        remote_ver = str(auth_resp.get("latest_version") or AGENT_VERSION)
+                        self.update_available = remote_ver
+                        self.download_url = str(auth_resp.get("download_url") or "/api/agent/download")
+                        logger.warning("Hub reports newer Agent version v%s available.", remote_ver)
+                        self._notify_update_available(remote_ver)
+                        if self.auto_update:
+                            logger.info("Auto-update enabled: triggering automatic background update in 2s...")
+                            threading.Thread(target=self.perform_self_update, daemon=True).start()
+
                     self._ws = ws
                     self._set_connected(True)
                     logger.info("Connected & authenticated to StreamGremlin Hub!")
@@ -870,6 +1014,10 @@ class StreamGremlinAgent:
         if action == "panic":
             logger.warning("Hub triggered PANIC! Resetting all active inputs & overlays.")
             self.chaos.panic_reset(notify_hub=False)
+
+        elif action == "update_agent":
+            logger.info("Received update_agent command from Hub.")
+            threading.Thread(target=self.perform_self_update, daemon=True).start()
 
         elif action == "play_sound":
             filename = msg.get("filename", "")
@@ -943,6 +1091,7 @@ class StreamGremlinAgent:
             self.tray_icon.icon = self._create_status_image(self.connected)
             status_text = "Verbunden" if self.connected else "Getrennt"
             self.tray_icon.title = f"StreamGremlin ({status_text})"
+            self.tray_icon.menu = self._build_tray_menu()
         except Exception:
             pass
 
@@ -952,24 +1101,11 @@ class StreamGremlinAgent:
             self._stop_event.wait()
             return
 
-        def on_panic(icon, item):
-            self.chaos.panic_reset(notify_hub=True)
-
-        def on_exit(icon, item):
-            self._stop_event.set()
-            self.chaos.stop()
-            icon.stop()
-
-        menu = pystray.Menu(
-            pystray.MenuItem("PANIC! Reset Inputs (ESC 3x)", on_panic),
-            pystray.MenuItem("Beenden", on_exit),
-        )
-
         self.tray_icon = pystray.Icon(
             "StreamGremlin",
             self._create_status_image(False),
             "StreamGremlin Companion Agent",
-            menu,
+            self._build_tray_menu(),
         )
         self.tray_icon.run()
 
@@ -981,9 +1117,10 @@ class StreamGremlinAgent:
         self.run_tray()
 
 
-def load_agent_config() -> Tuple[str, str]:
+def load_agent_config() -> Tuple[str, str, bool]:
     hub_url = os.environ.get("STREAMGREMLIN_HUB_URL", "").strip()
     token = os.environ.get("STREAMGREMLIN_AGENT_TOKEN", "").strip()
+    auto_update = os.environ.get("STREAMGREMLIN_AUTO_UPDATE", "true").lower() in ("true", "1", "yes")
 
     cfg_candidates = [
         Path(getattr(sys, "_MEIPASS", ".")) / "agent_config.json",
@@ -996,22 +1133,28 @@ def load_agent_config() -> Tuple[str, str]:
                 data = json.loads(p.read_text(encoding="utf-8"))
                 hub_url = hub_url or data.get("hub_url") or data.get("url") or ""
                 token = token or data.get("token") or data.get("agent_token") or ""
+                if "auto_update" in data:
+                    auto_update = bool(data["auto_update"])
                 break
             except Exception:
                 pass
 
-    return hub_url or "https://streamgremlin.orfel.de", token
+    return hub_url or "https://streamgremlin.orfel.de", token, auto_update
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="StreamGremlin Windows Companion Agent")
     parser.add_argument("--url", default="", help="StreamGremlin Hub Base URL")
     parser.add_argument("--token", default="", help="Agent Auth Token")
+    parser.add_argument("--auto-update", dest="auto_update", action="store_true", default=None, help="Automatisches Update aktivieren")
+    parser.add_argument("--no-auto-update", dest="auto_update", action="store_false", help="Automatisches Update deaktivieren")
+    parser.add_argument("--update", action="store_true", help="Auf Updates prüfen und sofort installieren")
     args = parser.parse_args()
 
-    default_url, default_token = load_agent_config()
+    default_url, default_token, default_auto_update = load_agent_config()
     hub_url = args.url or default_url
     token = args.token or default_token
+    auto_update = default_auto_update if args.auto_update is None else args.auto_update
 
     admin_mode = is_admin()
     priv_info = "Administrator (Full UIPI bypass)" if admin_mode else "Standard User (Tip: Run as Admin if game runs as Admin)"
@@ -1019,16 +1162,29 @@ def main() -> None:
     logger.info("Starting StreamGremlin Windows Companion Agent v%s", AGENT_VERSION)
     logger.info("Hub URL: %s", hub_url)
     logger.info("Privilege Level: %s", priv_info)
+    logger.info("Auto-Update: %s", "Aktiviert" if auto_update else "Deaktiviert")
     logger.info("Anti-Cheat Compatibility: 100% Userland Safe (Zero DLL injection, Zero memory hooks, DirectInput scancodes)")
     logger.info("Hardware Panic Hotkey: Press ESC 3x within 1.5s")
 
     print(f"=== StreamGremlin Companion Agent v{AGENT_VERSION} ===")
     print(f"Hub URL: {hub_url}")
     print(f"Privilege Level: {priv_info}")
+    print(f"Auto-Update: {'Aktiviert' if auto_update else 'Deaktiviert'}")
     print("Anti-Cheat Safety: 100% Userland Safe (Zero memory injection, DirectInput scancodes)")
     print("Emergency Panic Hotkey: Press ESC 3x within 1.5s")
 
-    agent = StreamGremlinAgent(hub_url=hub_url, token=token)
+    agent = StreamGremlinAgent(hub_url=hub_url, token=token, auto_update=auto_update)
+
+    if args.update:
+        print("Prüfe auf Updates...")
+        asyncio.run(agent.check_for_updates())
+        if agent.update_available:
+            print(f"Update auf v{agent.update_available} wird durchgeführt...")
+            agent.perform_self_update()
+        else:
+            print(f"Bereits auf der neuesten Version (v{AGENT_VERSION}).")
+            sys.exit(0)
+
     agent.start()
 
 

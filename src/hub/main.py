@@ -492,6 +492,14 @@ async def agent_version_check(request: Request) -> dict[str, Any]:
     }
 
 
+@app.post("/api/agent/trigger-update")
+async def api_trigger_agent_update(request: Request) -> dict[str, Any]:
+    """Sendet ein update_agent Signal an alle verbundenen Gaming-PC Companion Agents."""
+    auth_manager.require_roles(request, ["admin", "streamer"])
+    await ws_hub.broadcast_agent({"action": "update_agent"})
+    return {"ok": True, "message": "Update-Signal an verbundene Agents übermittelt."}
+
+
 @app.get("/api/agent/config-download")
 async def agent_config_download(request: Request) -> Response:
     auth_manager.require_roles(request, ["admin", "streamer"])
