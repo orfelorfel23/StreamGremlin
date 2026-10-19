@@ -24,18 +24,14 @@ LABEL org.opencontainers.image.licenses="CC0-1.0"
 RUN apt-get update && apt-get install -y --no-install-recommends \
     age \
     curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && useradd -m -u 1000 appuser
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 COPY --from=builder /install /usr/local
-COPY --chown=appuser:appuser . /app
+COPY . /app
 
-RUN mkdir -p /app/config /app/sounds /app/tts_cache \
-    && chown -R appuser:appuser /app
-
-USER appuser
+RUN mkdir -p /app/config /app/sounds /app/tts_cache
 
 EXPOSE 4736
 

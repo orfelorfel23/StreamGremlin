@@ -79,8 +79,11 @@ class ConfigManager:
         if not env_vars.get("MOD_PASSWORD"):
             env_vars["MOD_PASSWORD"] = "mod"
             changed = True
-        if changed or not self.env_path.exists():
-            self.write_env(env_vars, encrypt_age=True)
+        if changed or not (self.env_path.exists() and self.env_path.is_file()):
+            try:
+                self.write_env(env_vars, encrypt_age=False)
+            except Exception as exc:
+                logger.warning("Could not write initial env file %s: %s", self.env_path, exc)
         # Apply to current process environment
         for k, v in env_vars.items():
             if k not in os.environ or not os.environ[k]:
@@ -88,13 +91,16 @@ class ConfigManager:
 
     def read_env(self) -> dict[str, str]:
         data: dict[str, str] = {}
-        if self.env_path.exists():
-            for line in self.env_path.read_text(encoding="utf-8").splitlines():
-                stripped = line.strip()
-                if not stripped or stripped.startswith("#") or "=" not in stripped:
-                    continue
-                k, v = stripped.split("=", 1)
-                data[k.strip()] = v.strip()
+        if self.env_path.exists() and self.env_path.is_file():
+            try:
+                for line in self.env_path.read_text(encoding="utf-8").splitlines():
+                    stripped = line.strip()
+                    if not stripped or stripped.startswith("#") or "=" not in stripped:
+                        continue
+                    k, v = stripped.split("=", 1)
+                    data[k.strip()] = v.strip()
+            except Exception as exc:
+                logger.warning("Could not read %s: %s", self.env_path, exc)
         # Fallback to environment variables
         for key in [
             "PORT",
@@ -128,7 +134,10 @@ class ConfigManager:
         for k, v in current.items():
             lines.append(f"{k}={v}")
             os.environ[k] = str(v)
-        self.env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        try:
+            self.env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        except Exception as exc:
+            logger.warning("Could not write to %s: %s", self.env_path, exc)
 
         age_status = {"encrypted": False, "file": str(self.env_age_path), "error": None}
         if encrypt_age:
