@@ -10,10 +10,12 @@ import argparse
 import asyncio
 import ctypes
 from ctypes import wintypes
+import datetime
 import json
 import logging
 import math
 import os
+import platform
 import random
 import subprocess
 import sys
@@ -52,21 +54,84 @@ try:
 except Exception:
     HAS_TKINTER = False
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
+# Primary log file directly next to StreamGremlin.exe (streamgremlin.log), fallback to %LOCALAPPDATA%
+PRIMARY_LOG_FILE: Optional[Path] = None
+APPDATA_LOG_FILE: Optional[Path] = None
+
+try:
+    exe_dir = Path(sys.executable).parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
+    local_log_path = exe_dir / "streamgremlin.log"
+    with open(local_log_path, "a", encoding="utf-8") as _f:
+        _f.write("")
+    PRIMARY_LOG_FILE = local_log_path
+except Exception:
+    PRIMARY_LOG_FILE = None
+
+try:
+    appdata_dir = Path(os.environ.get("LOCALAPPDATA", ".")) / "StreamGremlin"
+    appdata_dir.mkdir(parents=True, exist_ok=True)
+    APPDATA_LOG_FILE = appdata_dir / "streamgremlin.log"
+except Exception:
+    APPDATA_LOG_FILE = None
+
+if PRIMARY_LOG_FILE is None:
+    PRIMARY_LOG_FILE = APPDATA_LOG_FILE
+
+log_formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.DEBUG)
+
+# Add file handler for PRIMARY_LOG_FILE (streamgremlin.log)
+if PRIMARY_LOG_FILE:
+    try:
+        fh_primary = logging.FileHandler(str(PRIMARY_LOG_FILE), encoding="utf-8")
+        fh_primary.setLevel(logging.DEBUG)
+        fh_primary.setFormatter(log_formatter)
+        root_logger.addHandler(fh_primary)
+    except Exception:
+        pass
+
+# Also write to AppData streamgremlin.log & agent.log for backwards compatibility if different
+if APPDATA_LOG_FILE and APPDATA_LOG_FILE != PRIMARY_LOG_FILE:
+    try:
+        fh_appdata = logging.FileHandler(str(APPDATA_LOG_FILE), encoding="utf-8")
+        fh_appdata.setLevel(logging.DEBUG)
+        fh_appdata.setFormatter(log_formatter)
+        root_logger.addHandler(fh_appdata)
+    except Exception:
+        pass
+
+# Add console handler
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setLevel(logging.INFO)
+console_handler.setFormatter(log_formatter)
+root_logger.addHandler(console_handler)
+
 logger = logging.getLogger("streamgremlin.agent")
 
-# Add persistent FileHandler in %LOCALAPPDATA%\StreamGremlin\agent.log
-try:
-    log_dir = Path(os.environ.get("LOCALAPPDATA", ".")) / "StreamGremlin"
-    log_dir.mkdir(parents=True, exist_ok=True)
-    file_handler = logging.FileHandler(str(log_dir / "agent.log"), encoding="utf-8")
-    file_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
-    logging.getLogger().addHandler(file_handler)
-except Exception:
-    pass
+
+def handle_uncaught_exception(exc_type, exc_value, exc_traceback):
+    """Catch any uncaught exception and ensure full traceback is written to streamgremlin.log."""
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+    logger.critical("FATAL UNCAUGHT EXCEPTION:", exc_info=(exc_type, exc_value, exc_traceback))
+
+
+sys.excepthook = handle_uncaught_exception
+if hasattr(threading, "excepthook"):
+    threading.excepthook = lambda args: handle_uncaught_exception(args.exc_type, args.exc_value, args.exc_traceback)
+
+
+def open_log_file() -> None:
+    """Open the main log file in the default text viewer (e.g. Notepad)."""
+    for p in [PRIMARY_LOG_FILE, APPDATA_LOG_FILE]:
+        if p and p.exists():
+            try:
+                os.startfile(str(p))
+                return
+            except Exception as e:
+                logger.error("Could not open log file %s: %s", p, e)
 
 AGENT_VERSION = "1.1.1"
 
@@ -872,17 +937,23 @@ class StreamGremlinAgent:
 
         # Generate self-replacing batch script with retry loop and clean PyInstaller environment
         target_dir = target_exe.parent
+        updater_log = target_dir / "updater.log"
         bat_script = f"""@echo off
 set _MEIPASS2=
 set _MEIPASS=
+echo [%date% %time%] StreamGremlin updater starting >> "{updater_log}"
 timeout /t 2 /nobreak >nul
 :retry
-move /y "{tmp_exe}" "{target_exe}" >nul 2>&1
+echo [%date% %time%] Replacing "{target_exe}" with "{tmp_exe}" >> "{updater_log}"
+move /y "{tmp_exe}" "{target_exe}" >> "{updater_log}" 2>&1
 if errorlevel 1 (
+    echo [%date% %time%] Target locked or error, retrying in 1s... >> "{updater_log}"
     timeout /t 1 /nobreak >nul
     goto retry
 )
+echo [%date% %time%] Starting new executable from "{target_dir}"... >> "{updater_log}"
 start "" /d "{target_dir}" "{target_exe}"
+echo [%date% %time%] Updater finished successfully. >> "{updater_log}"
 del "%~f0"
 """
         bat_file.write_text(bat_script, encoding="utf-8")
@@ -941,6 +1012,8 @@ del "%~f0"
             items.append(pystray.Menu.SEPARATOR)
 
         items.append(pystray.MenuItem("PANIC! Reset Inputs (ESC 3x)", on_panic))
+        items.append(pystray.MenuItem("📄 Logs anzeigen (streamgremlin.log)", lambda icon, item: open_log_file()))
+        items.append(pystray.Menu.SEPARATOR)
         items.append(pystray.MenuItem("Beenden", on_exit))
         return pystray.Menu(*items)
 
@@ -1183,11 +1256,21 @@ def main() -> None:
     admin_mode = is_admin()
     priv_info = "Administrator (Full UIPI bypass)" if admin_mode else "Standard User (Tip: Run as Admin if game runs as Admin)"
 
-    logger.info("Starting StreamGremlin Windows Companion Agent v%s", AGENT_VERSION)
-    logger.info("Hub URL: %s", hub_url)
+    logger.info("=" * 65)
+    logger.info("StreamGremlin Companion Agent v%s starting", AGENT_VERSION)
+    logger.info("Timestamp: %s", datetime.datetime.now().isoformat())
+    logger.info("Python: %s (%s)", sys.version.replace("\n", " "), platform.architecture()[0])
+    logger.info("Platform: %s %s (Release: %s, Version: %s)", platform.system(), platform.release(), platform.version(), platform.win32_ver()[1] if hasattr(platform, "win32_ver") else "")
+    logger.info("Executable: %s", sys.executable)
+    logger.info("Working Directory: %s", os.getcwd())
+    logger.info("PyInstaller Frozen: %s", getattr(sys, "frozen", False))
+    logger.info("PyInstaller MEIPASS: %s", getattr(sys, "_MEIPASS", "None"))
     logger.info("Privilege Level: %s", priv_info)
+    logger.info("Primary Log File: %s", PRIMARY_LOG_FILE)
+    logger.info("Hub URL: %s", hub_url)
     logger.info("Auto-Update: %s", "Aktiviert" if auto_update else "Deaktiviert")
     logger.info("Hardware Panic Hotkey: Press ESC 3x within 1.5s")
+    logger.info("=" * 65)
 
     print(f"=== StreamGremlin Companion Agent v{AGENT_VERSION} ===")
     print(f"Hub URL: {hub_url}")

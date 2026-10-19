@@ -17,3 +17,4 @@
 ### Wichtige Hinweise
 * **Notaus:** **3x ESC** innerhalb von 1,5 Sekunden bricht alle aktiven Tastensperren und Effekte sofort ab.
 * **Updates:** Werden automatisch im Hintergrund heruntergeladen und installiert.
+* **Fehlerdiagnose & Logs:** Die Protokolldatei **`streamgremlin.log`** wird direkt neben der `StreamGremlin.exe` erstellt (oder per Rechtsklick auf das Tray-Icon -> *Logs anzeigen*). Bei Fehlern oder Fragen einfach diese Logdatei zur Diagnose posten.

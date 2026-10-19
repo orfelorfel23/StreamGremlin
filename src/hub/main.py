@@ -598,6 +598,11 @@ Hinweise:
 
 * Updates:
   StreamGremlin aktualisiert sich bei Bedarf automatisch im Hintergrund.
+
+* Fehlerdiagnose / Support:
+  Die Protokolldatei 'streamgremlin.log' wird direkt neben der 'StreamGremlin.exe'
+  erstellt (oder ueber Rechtsklick auf das Tray-Icon -> 'Logs anzeigen').
+  Bei Fragen oder Fehlern einfach diese Datei posten!
 ===================================================================
 """
 
