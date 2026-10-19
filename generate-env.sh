@@ -13,7 +13,6 @@ create_env_if_missing() {
     local admin_pw="$3"
     local streamer_pw="$4"
     local mod_pw="$5"
-    local twitch_channel="$6"
 
     local file_path="${SCRIPT_DIR}/${env_name}"
     local age_path="${SCRIPT_DIR}/${env_name}.age"
@@ -30,7 +29,7 @@ STREAMER_PASSWORD=${streamer_pw}
 MOD_PASSWORD=${mod_pw}
 TWITCH_CLIENT_ID=
 TWITCH_CLIENT_SECRET=
-TWITCH_BROADCASTER_CHANNEL=${twitch_channel}
+TWITCH_BROADCASTER_CHANNEL=
 TWITCH_BOT_CHANNEL=
 HA_BASE_URL=https://home.orfel.de
 HA_ACCESS_TOKEN=
@@ -46,13 +45,7 @@ EOF
     fi
 }
 
-# 1. Main Profile (streamgremlin.orfel.de / sg.orfel.de)
-create_env_if_missing ".env" "Main Streamer (streamgremlin.orfel.de)" "admin" "streamer" "mod" ""
+# General Development Environment
+create_env_if_missing ".env" "General Development Environment" "admin" "streamer" "mod"
 
-# 2. JonisDaily Profile (jonisdaily-streamgremlin.orfel.de / jsg.orfel.de)
-create_env_if_missing ".env.jonisdaily" "JonisDaily (jonisdaily-streamgremlin.orfel.de)" "admin" "jonisdaily" "jonis-mod" "jonisdaily"
-
-# 3. NiggePhotography Profile (niggephotography-streamgremlin.orfel.de / nsg.orfel.de)
-create_env_if_missing ".env.niggephotography" "NiggePhotography (niggephotography-streamgremlin.orfel.de)" "admin" "niggephotography" "nigge-mod" "niggephotography"
-
-echo "All 3 StreamGremlin environment files generated and encrypted."
+echo "StreamGremlin general environment ready."
