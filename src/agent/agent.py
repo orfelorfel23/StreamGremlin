@@ -1125,13 +1125,15 @@ def load_agent_config() -> Tuple[str, str, bool]:
     cfg_candidates = [
         Path(getattr(sys, "_MEIPASS", ".")) / "agent_config.json",
         Path("agent_config.json"),
+        Path("agent.json"),
         Path(__file__).resolve().parent / "agent_config.json",
+        Path(__file__).resolve().parent / "agent.json",
     ]
     for p in cfg_candidates:
         if p.exists():
             try:
                 data = json.loads(p.read_text(encoding="utf-8"))
-                hub_url = hub_url or data.get("hub_url") or data.get("url") or ""
+                hub_url = hub_url or data.get("hub_url") or data.get("url") or data.get("hub_http_url") or ""
                 token = token or data.get("token") or data.get("agent_token") or ""
                 if "auto_update" in data:
                     auto_update = bool(data["auto_update"])

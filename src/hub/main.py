@@ -507,15 +507,18 @@ async def agent_config_download(request: Request) -> Response:
     host = request.headers.get("host", "localhost:4736")
     scheme = "wss" if request.url.scheme == "https" or "orfel.de" in host else "ws"
     agent_cfg = {
-        "hub_ws_url": f"{scheme}://{host}/ws/agent",
+        "hub_url": f"{'https' if scheme == 'wss' else 'http'}://{host}",
         "hub_http_url": f"{'https' if scheme == 'wss' else 'http'}://{host}",
+        "hub_ws_url": f"{scheme}://{host}/ws/agent",
+        "token": env.get("AGENT_TOKEN", ""),
         "agent_token": env.get("AGENT_TOKEN", ""),
+        "auto_update": True,
         "panic_hotkey": "esc_3x",
     }
     return Response(
         content=json.dumps(agent_cfg, indent=2),
         media_type="application/json",
-        headers={"Content-Disposition": 'attachment; filename="agent.json"'},
+        headers={"Content-Disposition": 'attachment; filename="agent_config.json"'},
     )
 
 
