@@ -34,10 +34,21 @@ def build() -> None:
         "-m",
         "PyInstaller",
         "--noconfirm",
+        "--clean",
         "--onefile",
         "--windowed",
         "--name",
         "StreamGremlin",
+        "--hidden-import",
+        "pynput.keyboard._win32",
+        "--hidden-import",
+        "pynput.mouse._win32",
+        "--hidden-import",
+        "pystray._win32",
+        "--collect-all",
+        "pynput",
+        "--collect-all",
+        "pystray",
     ]
     if ICON_PNG.exists():
         cmd.extend(["--add-data", f"{ICON_PNG}{sep}."])
