@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=1920, height=1080, initial-scale=1.0" />
   <title>StreamGremlin OBS Overlay (1920x1080)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700;800&family=Inter:wght@600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
   <style>
     * {
       box-sizing: border-box;
@@ -11,13 +14,25 @@
       padding: 0;
       user-select: none;
     }
+    :root {
+      --accent-purple: #9146ff;
+      --accent-purple-light: #c084fc;
+      --accent-lime: #22c55e;
+      --accent-lime-bright: #38ff7a;
+      --accent-amber: #f59e0b;
+      --accent-red: #ef4444;
+      --font-display: 'Chakra Petch', sans-serif;
+      --font-mono: 'JetBrains Mono', Consolas, monospace;
+      --font-sans: 'Inter', sans-serif;
+    }
     html, body {
       width: 1920px;
       height: 1080px;
       overflow: hidden;
       background: transparent !important;
-      font-family: 'JetBrains Mono', 'Consolas', 'Segoe UI', monospace;
+      font-family: var(--font-sans);
       color: #f4f4f6;
+      -webkit-font-smoothing: antialiased;
     }
 
     #stage {
@@ -45,11 +60,55 @@
       pointer-events: none;
       z-index: 850;
       transition: opacity 0.25s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
+
+    /* Glowing Gremlin Eyes during Blackout */
+    #gremlin-eyes {
+      display: flex;
+      gap: 80px;
+      opacity: 0;
+      transform: scale(0.9);
+      transition: opacity 0.35s ease, transform 0.35s ease;
+    }
+    #fx-blackout.blackout-active #gremlin-eyes {
+      opacity: 1;
+      transform: scale(1);
+    }
+    .g-eye {
+      width: 60px;
+      height: 36px;
+      background: radial-gradient(circle at 45% 50%, #39ff7a 20%, #22c55e 65%, transparent 85%);
+      border-radius: 50% 50% 35% 35% / 60% 60% 40% 40%;
+      box-shadow: 0 0 32px #39ff7a, 0 0 70px rgba(34, 197, 94, 0.75);
+      transform: rotate(-12deg);
+      position: relative;
+      animation: gremlinEyeBlink 3.2s ease-in-out infinite;
+    }
+    .g-eye.right {
+      transform: rotate(12deg) scaleX(-1);
+    }
+    .g-eye::after {
+      content: '';
+      position: absolute;
+      top: 6px;
+      left: 20px;
+      width: 14px;
+      height: 24px;
+      background: #042512;
+      border-radius: 50%;
+    }
+    @keyframes gremlinEyeBlink {
+      0%, 40%, 46%, 100% { transform: scaleY(1); }
+      43% { transform: scaleY(0.08); }
+    }
+
     #fx-tunnel {
       position: absolute;
       inset: 0;
-      background: radial-gradient(circle at center, transparent 140px, rgba(0,0,0,0.98) 290px);
+      background: radial-gradient(circle at center, transparent 150px, rgba(0,0,0,0.98) 320px);
       opacity: 0;
       pointer-events: none;
       z-index: 800;
@@ -116,37 +175,67 @@
       transform: scaleX(-1);
     }
 
-    /* Fake Windows BSOD */
+    /* Windows BSOD (Polished Windows 11 Gremlin Edition) */
     #fx-bsod {
       position: absolute;
       inset: 0;
-      background: #0078d7;
+      background: #0067b8;
       color: #ffffff;
-      font-family: 'Segoe UI', sans-serif;
-      padding: 140px 180px;
+      font-family: 'Segoe UI', -apple-system, sans-serif;
+      padding: 130px 180px;
       display: none;
+      flex-direction: column;
       z-index: 950;
     }
-    #fx-bsod .sad { font-size: 130px; font-weight: 300; margin-bottom: 30px; }
-    #fx-bsod .msg { font-size: 32px; line-height: 1.45; max-width: 1100px; margin-bottom: 40px; }
-    #fx-bsod .code { font-size: 20px; opacity: 0.9; font-family: Consolas, monospace; }
+    #fx-bsod .sad {
+      font-size: 140px;
+      font-weight: 300;
+      margin-bottom: 24px;
+      line-height: 1;
+    }
+    #fx-bsod .msg {
+      font-size: 28px;
+      line-height: 1.45;
+      max-width: 1080px;
+      margin-bottom: 40px;
+      font-weight: 300;
+    }
+    .bsod-footer {
+      display: flex;
+      align-items: center;
+      gap: 30px;
+      margin-top: 10px;
+    }
+    .bsod-info {
+      font-size: 15px;
+      line-height: 1.6;
+    }
+    .bsod-info .code {
+      font-family: Consolas, monospace;
+      font-size: 16px;
+      opacity: 0.95;
+    }
 
     /* Censored Bar */
     #fx-censored {
       position: absolute;
-      top: 42%;
+      top: 45%;
       left: 50%;
-      transform: translate(-50%, -50%) rotate(-4deg);
-      background: #09090b;
+      transform: translate(-50%, -50%) rotate(-3deg);
+      background: #000000;
       border: 4px solid #ef4444;
-      padding: 24px 90px;
-      font-size: 56px;
+      padding: 22px 75px;
+      font-family: var(--font-mono);
+      font-size: 50px;
       font-weight: 900;
-      letter-spacing: 10px;
+      letter-spacing: 8px;
       color: #ef4444;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.85);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.9), 0 0 30px rgba(239, 68, 68, 0.45);
       display: none;
       z-index: 820;
+      text-transform: uppercase;
+      outline: 2px dashed rgba(239, 68, 68, 0.6);
+      outline-offset: 6px;
     }
 
     /* Layer 2: Physics & Matrix Canvas */
@@ -162,9 +251,9 @@
     /* Layer 3: Troll-HUD Countdown Stack (Top Right / Center) */
     #troll-hud-container {
       position: absolute;
-      top: 32px;
-      right: 36px;
-      width: 440px;
+      top: 36px;
+      right: 40px;
+      width: 460px;
       display: flex;
       flex-direction: column;
       gap: 12px;
@@ -172,41 +261,107 @@
       pointer-events: none;
     }
     .troll-hud-card {
-      background: rgba(9, 10, 15, 0.92);
-      border: 2px solid #a855f7;
-      border-left: 8px solid #22c55e;
-      padding: 14px 18px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.75);
-      animation: slideInRight 0.25s ease-out;
+      background: linear-gradient(135deg, rgba(13, 16, 24, 0.96) 0%, rgba(9, 10, 15, 0.96) 100%);
+      border: 1px solid rgba(145, 70, 255, 0.5);
+      border-left: 5px solid var(--accent-lime);
+      border-radius: 8px;
+      padding: 12px 14px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.8), 0 0 20px rgba(145, 70, 255, 0.2);
+      animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      backdrop-filter: blur(8px);
     }
     @keyframes slideInRight {
       from { transform: translateX(120%); opacity: 0; }
       to   { transform: translateX(0); opacity: 1; }
     }
-    .troll-hud-header {
+    @keyframes slideOutRight {
+      from { transform: translateX(0); opacity: 1; }
+      to   { transform: translateX(120%); opacity: 0; }
+    }
+    .troll-hud-avatar {
+      width: 44px;
+      height: 44px;
+      flex-shrink: 0;
+      border-radius: 6px;
+      background: #000;
+      border: 1px solid rgba(34, 197, 94, 0.5);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .troll-hud-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .troll-hud-content {
+      flex: 1;
+      min-width: 0;
+    }
+    .troll-hud-badge-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
+      margin-bottom: 3px;
+    }
+    .troll-hud-tag {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 800;
+      color: var(--accent-lime-bright);
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      text-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+    }
+    .hud-sec {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 800;
+      color: #ffffff;
+      background: rgba(145, 70, 255, 0.25);
+      padding: 2px 7px;
+      border-radius: 3px;
+      border: 1px solid rgba(145, 70, 255, 0.4);
+    }
+    .troll-hud-title {
+      font-family: var(--font-display);
       font-size: 16px;
       font-weight: 800;
-      color: #f8fafc;
-      margin-bottom: 6px;
+      color: #ffffff;
+      line-height: 1.2;
+      margin-bottom: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+      letter-spacing: 0.3px;
     }
     .troll-hud-user {
-      font-size: 13px;
-      color: #4ade80;
-      margin-bottom: 8px;
+      font-size: 11px;
+      color: #94a3b8;
+      margin-bottom: 7px;
+    }
+    .troll-hud-user strong {
+      color: #c084fc;
     }
     .troll-hud-bar-bg {
       width: 100%;
-      height: 8px;
-      background: #1e293b;
+      height: 6px;
+      background: rgba(30, 41, 59, 0.8);
+      border-radius: 3px;
       overflow: hidden;
+      box-shadow: inset 0 1px 2px rgba(0,0,0,0.5);
     }
     .troll-hud-bar-fill {
       height: 100%;
       background: linear-gradient(90deg, #22c55e, #a855f7);
+      box-shadow: 0 0 8px rgba(34, 197, 94, 0.8);
       width: 100%;
+      border-radius: 3px;
       transition: width 0.1s linear;
     }
 
@@ -215,36 +370,263 @@
       position: absolute;
       bottom: 64px;
       left: 50%;
-      transform: translateX(-50%);
-      background: rgba(10, 12, 18, 0.94);
-      border: 2px solid #22c55e;
-      padding: 18px 34px;
-      min-width: 520px;
-      max-width: 960px;
+      transform: translateX(-50%) translateY(30px) scale(0.95);
+      background: linear-gradient(135deg, rgba(12, 15, 23, 0.96) 0%, rgba(8, 10, 16, 0.96) 100%);
+      border: 2px solid rgba(34, 197, 94, 0.6);
+      border-radius: 10px;
+      padding: 16px 28px;
+      min-width: 540px;
+      max-width: 980px;
       display: none;
       align-items: center;
-      gap: 20px;
-      box-shadow: 0 16px 48px rgba(0,0,0,0.85);
+      gap: 18px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9), 0 0 24px rgba(34, 197, 94, 0.35);
       z-index: 910;
+      backdrop-filter: blur(12px);
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+      opacity: 0;
     }
-    #alert-banner img {
-      width: 64px;
-      height: 64px;
-      object-fit: contain;
+    #alert-banner.banner-visible {
+      transform: translateX(-50%) translateY(0) scale(1);
+      opacity: 1;
     }
-    #alert-banner .alert-title {
-      font-size: 15px;
+    .alert-avatar-wrap {
+      width: 58px;
+      height: 58px;
+      flex-shrink: 0;
+      border-radius: 8px;
+      background: #000;
+      border: 2px solid rgba(145, 70, 255, 0.6);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 16px rgba(145, 70, 255, 0.4);
+    }
+    .alert-avatar-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .alert-content-wrap {
+      flex: 1;
+      min-width: 0;
+    }
+    .alert-topline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 5px;
+    }
+    .alert-title {
+      font-family: var(--font-mono);
+      font-size: 13px;
       text-transform: uppercase;
-      letter-spacing: 2px;
-      color: #22c55e;
+      letter-spacing: 1.5px;
+      color: #38ff7a;
       font-weight: 800;
-      margin-bottom: 4px;
+      text-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
     }
-    #alert-banner .alert-text {
+    .alert-text {
       font-size: 22px;
       font-weight: 700;
       color: #ffffff;
+      line-height: 1.35;
+      text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9);
+      word-break: break-word;
     }
+
+    /* Animated Audio Equalizer bars */
+    .alert-eq {
+      display: flex;
+      align-items: flex-end;
+      gap: 3px;
+      height: 16px;
+    }
+    .eq-bar {
+      width: 3px;
+      background: #c084fc;
+      border-radius: 2px;
+      animation: eqDance 0.6s infinite alternate ease-in-out;
+    }
+    .eq-bar.bar-1 { height: 6px; animation-delay: 0.1s; }
+    .eq-bar.bar-2 { height: 14px; animation-delay: 0.25s; }
+    .eq-bar.bar-3 { height: 10px; animation-delay: 0.15s; }
+    .eq-bar.bar-4 { height: 16px; animation-delay: 0.35s; }
+    @keyframes eqDance {
+      0% { height: 3px; background: #38ff7a; }
+      100% { height: 16px; background: #c084fc; }
+    }
+
+    /* Jumpscare / GIF Popup */
+    #jumpscare-box {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.1);
+      display: none;
+      z-index: 930;
+      transition: transform 0.12s cubic-bezier(0.17, 0.89, 0.32, 1.49);
+    }
+    #jumpscare-box img {
+      max-width: 650px;
+      max-height: 650px;
+      filter: drop-shadow(0 0 40px rgba(168, 85, 247, 0.9));
+    }
+
+    /* Minigame: Timebomb Widget */
+    #timebomb-widget {
+      position: absolute;
+      top: 40px;
+      left: 40px;
+      width: 440px;
+      background: rgba(14, 10, 16, 0.96);
+      border: 2px solid #ef4444;
+      border-radius: 8px;
+      padding: 18px 22px;
+      display: none;
+      z-index: 925;
+      box-shadow: 0 0 40px rgba(239, 68, 68, 0.6);
+      backdrop-filter: blur(8px);
+    }
+    .bomb-title {
+      font-family: var(--font-display);
+      font-size: 20px;
+      font-weight: 900;
+      color: #ef4444;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      letter-spacing: 0.5px;
+    }
+    .bomb-instr {
+      font-size: 15px;
+      color: #e2e8f0;
+      margin-bottom: 12px;
+    }
+    .bomb-code {
+      display: inline-block;
+      background: #ef4444;
+      color: #000;
+      font-weight: 900;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-family: var(--font-mono);
+    }
+
+    /* Minigame: Wheel of Fortune */
+    #wheel-modal {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(9, 10, 15, 0.95);
+      border: 3px solid #a855f7;
+      border-radius: 12px;
+      padding: 28px;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      z-index: 940;
+      box-shadow: 0 25px 70px rgba(0,0,0,0.9), 0 0 35px rgba(168, 85, 247, 0.4);
+      backdrop-filter: blur(10px);
+    }
+    #wheel-title {
+      font-family: var(--font-display);
+      font-size: 24px;
+      font-weight: 900;
+      color: #4ade80;
+      margin-bottom: 14px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      text-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+    }
+  </style>
+</head>
+<body>
+  <div id="stage">
+    <!-- Layer 1: Visual Filter Overlays -->
+    <div id="fx-flashbang"></div>
+    <div id="fx-blackout">
+      <div id="gremlin-eyes">
+        <div class="g-eye left"></div>
+        <div class="g-eye right"></div>
+      </div>
+    </div>
+    <div id="fx-tunnel"></div>
+    <div id="fx-rave"></div>
+    <div id="fx-censored">TOP SECRET // CENSORED</div>
+    <div id="fx-bsod">
+      <div class="sad">:(</div>
+      <div class="msg">
+        Auf deinem Gaming-PC ist ein Problem aufgetreten. Der Stream muss kurz getrollt werden. Wir sammeln einige Fehlerdaten und führen dann einen Neustart durch.<br><br>
+        69% abgeschlossen
+      </div>
+      <div class="bsod-footer">
+        <div class="bsod-qr">
+          <svg width="84" height="84" viewBox="0 0 24 24" fill="#ffffff">
+            <path d="M2 2h8v8H2V2zm2 2v4h4V4H4zm10-2h8v8h-8V2zm2 2v4h4V4h-4zM2 14h8v8H2v-8zm2 2v4h4v-4H4zm14 2h2v2h-2v-2zm-4-2h2v2h-2v-2zm2 4h2v2h-2v-2zm2-2h2v2h-2v-2zm2 2h2v2h-2v-2zM14 14h2v2h-2v-2zm4 0h2v2h-2v-2zm-2 2h2v2h-2v-2z"/>
+          </svg>
+        </div>
+        <div class="bsod-info">
+          <div>Weitere Informationen über diesen Fehler findest du unter: <strong>https://streamgremlin.orfel.de</strong></div>
+          <div class="code" style="margin-top: 6px;">Stillstandcode: <strong>CRITICAL_GREMLIN_OVERLOAD</strong></div>
+          <div class="code">Fehlerursache: <strong>twitch.chat.gremlin.sys</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Layer 2: Physics Canvas (Bouncing Emotes, Confetti & Matrix Rain) -->
+    <canvas id="physics-canvas" width="1920" height="1080"></canvas>
+
+    <!-- Layer 3: Troll-HUD Countdown Cards -->
+    <div id="troll-hud-container"></div>
+
+    <!-- Alert / TTS Banner -->
+    <div id="alert-banner">
+      <div class="alert-avatar-wrap">
+        <img src="/assets/icon.png" alt="Gremlin" onerror="this.style.display='none'" />
+      </div>
+      <div class="alert-content-wrap">
+        <div class="alert-topline">
+          <span class="alert-title" id="alert-user">STREAMGREMLIN</span>
+          <div class="alert-eq" id="alert-eq">
+            <span class="eq-bar bar-1"></span>
+            <span class="eq-bar bar-2"></span>
+            <span class="eq-bar bar-3"></span>
+            <span class="eq-bar bar-4"></span>
+          </div>
+        </div>
+        <div class="alert-text" id="alert-msg">Bereit!</div>
+      </div>
+    </div>
+
+    <!-- Jumpscare Box -->
+    <div id="jumpscare-box">
+      <img id="jumpscare-img" src="/assets/icon.png" alt="Jumpscare" />
+    </div>
+
+    <!-- Minigame: Timebomb -->
+    <div id="timebomb-widget">
+      <div class="bomb-title">
+        <span>💣 CHAT-ZEITBOMBE!</span>
+        <span id="bomb-timer">20s</span>
+      </div>
+      <div class="bomb-instr">
+        Schreibt <span class="bomb-code" id="bomb-word">cut</span> in den Chat zum Entschärfen!
+      </div>
+      <div class="troll-hud-bar-bg">
+        <div class="troll-hud-bar-fill" id="bomb-bar" style="width: 0%;"></div>
+      </div>
+      <div style="margin-top:6px; font-size:13px; text-align:right;" id="bomb-count">0 / 8</div>
+    </div>
+
+    <!-- Minigame: Wheel of Fortune -->
+    <div id="wheel-modal">
+      <div id="wheel-title">🎡 GREMLIN GLÜCKSRAD</div>
+      <canvas id="wheel-canvas" width="460" height="460"></canvas>
+    </div>
+  </div>
 
     /* Jumpscare / GIF Popup */
     #jumpscare-box {
@@ -666,8 +1048,12 @@
         });
       } else if (eff === 'blackout') {
         const el = document.getElementById('fx-blackout');
+        el.classList.add('blackout-active');
         el.style.opacity = '1';
-        registerTimeout(() => { el.style.opacity = '0'; }, dur);
+        registerTimeout(() => {
+          el.style.opacity = '0';
+          el.classList.remove('blackout-active');
+        }, dur);
       } else if (eff === 'tunnel_vision') {
         const el = document.getElementById('fx-tunnel');
         el.style.opacity = '1';
@@ -701,7 +1087,7 @@
         registerTimeout(() => { stage.classList.remove('mirror-active'); }, dur);
       } else if (eff === 'fake_bsod') {
         const el = document.getElementById('fx-bsod');
-        el.style.display = 'block';
+        el.style.display = 'flex';
         registerTimeout(() => { el.style.display = 'none'; }, dur);
       } else if (eff === 'censored_bar') {
         const el = document.getElementById('fx-censored');
@@ -736,12 +1122,24 @@
       }
     }
 
-    function showBanner(title, text, durationMs = 4000) {
+    function escapeHtml(str) {
+      return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    let bannerTimeout = null;
+    function showBanner(title, text, durationMs = 4500) {
       const banner = document.getElementById('alert-banner');
       document.getElementById('alert-user').textContent = title;
       document.getElementById('alert-msg').textContent = text;
       banner.style.display = 'flex';
-      registerTimeout(() => { banner.style.display = 'none'; }, durationMs);
+      requestAnimationFrame(() => {
+        banner.classList.add('banner-visible');
+      });
+      clearTimeout(bannerTimeout);
+      bannerTimeout = setTimeout(() => {
+        banner.classList.remove('banner-visible');
+        setTimeout(() => { banner.style.display = 'none'; }, 260);
+      }, durationMs);
     }
 
     // =========================================================================
@@ -754,13 +1152,19 @@
       const card = document.createElement('div');
       card.className = 'troll-hud-card';
       card.innerHTML = `
-        <div class="troll-hud-header">
-          <span>😈 ${payload.title || 'Troll aktiv'}</span>
-          <span class="hud-sec">${durSec}s</span>
+        <div class="troll-hud-avatar">
+          <img src="/assets/icon.png" alt="Gremlin" />
         </div>
-        <div class="troll-hud-user">Ausgelöst durch @${payload.user || 'Chat'}</div>
-        <div class="troll-hud-bar-bg">
-          <div class="troll-hud-bar-fill"></div>
+        <div class="troll-hud-content">
+          <div class="troll-hud-badge-row">
+            <span class="troll-hud-tag">⚡ GREMLIN ATTACK</span>
+            <span class="hud-sec">${durSec}s</span>
+          </div>
+          <div class="troll-hud-title">${escapeHtml(payload.title || 'Troll aktiv')}</div>
+          <div class="troll-hud-user">via <strong>@${escapeHtml(payload.user || 'Chat')}</strong></div>
+          <div class="troll-hud-bar-bg">
+            <div class="troll-hud-bar-fill"></div>
+          </div>
         </div>
       `;
       hudContainer.appendChild(card);
@@ -778,7 +1182,8 @@
         if (rem > 0 && card.isConnected) {
           requestAnimationFrame(tick);
         } else if (card.isConnected) {
-          card.remove();
+          card.style.animation = 'slideOutRight 0.25s ease-in forwards';
+          setTimeout(() => { if (card.isConnected) card.remove(); }, 260);
         }
       }
       requestAnimationFrame(tick);
@@ -911,12 +1316,20 @@
       stage.className = '';
       stage.style.transform = 'none';
       document.getElementById('fx-flashbang').style.opacity = '0';
-      document.getElementById('fx-blackout').style.opacity = '0';
+      const bo = document.getElementById('fx-blackout');
+      if (bo) {
+        bo.style.opacity = '0';
+        bo.classList.remove('blackout-active');
+      }
       document.getElementById('fx-tunnel').style.opacity = '0';
       document.getElementById('fx-rave').classList.remove('rave-active');
       document.getElementById('fx-bsod').style.display = 'none';
       document.getElementById('fx-censored').style.display = 'none';
-      document.getElementById('alert-banner').style.display = 'none';
+      const ab = document.getElementById('alert-banner');
+      if (ab) {
+        ab.classList.remove('banner-visible');
+        ab.style.display = 'none';
+      }
       document.getElementById('jumpscare-box').style.display = 'none';
       document.getElementById('timebomb-widget').style.display = 'none';
       document.getElementById('wheel-modal').style.display = 'none';
