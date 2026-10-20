@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import atexit
 import ctypes
 from ctypes import wintypes
 import datetime
@@ -16,6 +17,7 @@ import logging
 import math
 import os
 import platform
+import queue
 import random
 import subprocess
 import sys
@@ -233,34 +235,110 @@ def set_display_gamma_ramp(mode: str = "normal") -> None:
         logger.debug("Gamma ramp error: %s", exc)
 
 
-def set_win32_color_inversion(enable: bool) -> None:
+class Win32MagnificationController:
+    """Thread-safe controller for Windows Magnification API.
+
+    Windows Magnification API requires all Mag* calls to happen on the exact same thread.
+    This controller runs an internal worker thread with a command queue.
+    """
+
+    def __init__(self) -> None:
+        self._queue: queue.Queue[Tuple[bool, Optional[threading.Event]]] = queue.Queue()
+        self._initialized = False
+        self._thread = threading.Thread(target=self._worker, daemon=True, name="Win32MagnificationWorker")
+        self._thread.start()
+
+    def _worker(self) -> None:
+        if sys.platform != "win32":
+            return
+        try:
+            mag = ctypes.windll.magnification
+            self._initialized = bool(mag.MagInitialize())
+            if not self._initialized:
+                logger.debug("MagInitialize returned False")
+                return
+        except Exception as exc:
+            logger.debug("MagInitialize error: %s", exc)
+            return
+
+        identity_matrix = (ctypes.c_float * 25)(
+            1.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 1.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 1.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 1.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 1.0,
+        )
+        invert_matrix = (ctypes.c_float * 25)(
+            -1.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, -1.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, -1.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 1.0, 0.0,
+            1.0, 1.0, 1.0, 0.0, 1.0,
+        )
+
+        while True:
+            try:
+                item = self._queue.get()
+                if item is None:
+                    break
+                enable, evt = item
+                target_matrix = invert_matrix if enable else identity_matrix
+                res = mag.MagSetFullscreenColorEffect(ctypes.byref(target_matrix))
+                if res:
+                    logger.info("Win32 Magnification color effect updated: enable=%s", enable)
+                else:
+                    logger.error("MagSetFullscreenColorEffect failed: error=%s", ctypes.windll.kernel32.GetLastError())
+                if evt:
+                    evt.set()
+            except Exception as exc:
+                logger.debug("Magnification worker error: %s", exc)
+
+        try:
+            mag.MagSetFullscreenColorEffect(ctypes.byref(identity_matrix))
+            mag.MagUninitialize()
+        except Exception:
+            pass
+
+
+_mag_controller: Optional[Win32MagnificationController] = None
+_mag_lock = threading.Lock()
+
+
+def get_mag_controller() -> Win32MagnificationController:
+    global _mag_controller
+    with _mag_lock:
+        if _mag_controller is None:
+            _mag_controller = Win32MagnificationController()
+        return _mag_controller
+
+
+def set_win32_color_inversion(enable: bool, wait: bool = False) -> None:
     """Hardware Color Inversion via Windows Magnification API."""
     if sys.platform != "win32":
         return
     try:
-        mag = ctypes.windll.magnification
-        if enable:
-            mag.MagInitialize()
-            invert_matrix = (ctypes.c_float * 25)(
-                -1.0, 0.0, 0.0, 0.0, 0.0,
-                0.0, -1.0, 0.0, 0.0, 0.0,
-                0.0, 0.0, -1.0, 0.0, 0.0,
-                0.0, 0.0, 0.0, 1.0, 0.0,
-                1.0, 1.0, 1.0, 0.0, 1.0,
-            )
-            mag.MagSetFullscreenColorEffect(ctypes.byref(invert_matrix))
-        else:
-            id_matrix = (ctypes.c_float * 25)(
-                1.0, 0.0, 0.0, 0.0, 0.0,
-                0.0, 1.0, 0.0, 0.0, 0.0,
-                0.0, 0.0, 1.0, 0.0, 0.0,
-                0.0, 0.0, 0.0, 1.0, 0.0,
-                0.0, 0.0, 0.0, 0.0, 1.0,
-            )
-            mag.MagSetFullscreenColorEffect(ctypes.byref(id_matrix))
-            mag.MagUninitialize()
+        ctrl = get_mag_controller()
+        evt = threading.Event() if wait else None
+        ctrl._queue.put((enable, evt))
+        if evt:
+            evt.wait(timeout=2.0)
     except Exception as exc:
-        logger.debug("Magnification API error: %s", exc)
+        logger.debug("set_win32_color_inversion error: %s", exc)
+
+
+def _cleanup_magnification() -> None:
+    global _mag_controller
+    if _mag_controller is not None and sys.platform == "win32":
+        try:
+            # Synchronously reset to identity
+            evt = threading.Event()
+            _mag_controller._queue.put((False, evt))
+            evt.wait(timeout=1.0)
+        except Exception:
+            pass
+
+
+atexit.register(_cleanup_magnification)
 
 
 # ==============================================================================
@@ -579,7 +657,7 @@ class InputChaosController:
                 self.mouse_speed_overridden = False
 
             if self.color_inverted:
-                set_win32_color_inversion(False)
+                set_win32_color_inversion(False, wait=True)
                 self.color_inverted = False
 
             set_display_gamma_ramp("normal")
@@ -622,6 +700,7 @@ class InputChaosController:
                     if act == "invert_colors" and self.color_inverted:
                         set_win32_color_inversion(False)
                         self.color_inverted = False
+                        logger.info("Expired troll: invert_colors -> restored normal colors")
                     if act in ("gamma_flash", "gamma_blackout"):
                         set_display_gamma_ramp("normal")
 
