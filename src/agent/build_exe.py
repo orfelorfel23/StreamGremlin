@@ -6,9 +6,64 @@ import sys
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT_DIR))
+
+from src.agent.agent import AGENT_VERSION
+
 AGENT_SCRIPT = ROOT_DIR / "src" / "agent" / "agent.py"
 ICON_PNG = ROOT_DIR / "icon.png"
 ICON_ICO = ROOT_DIR / "src" / "agent" / "icon.ico"
+
+
+def generate_version_file(version_str: str) -> Path:
+    """Generate PyInstaller version resource to embed into Windows PE executable."""
+    parts = []
+    for p in version_str.lstrip("v").split("."):
+        try:
+            parts.append(int(p))
+        except ValueError:
+            parts.append(0)
+    while len(parts) < 4:
+        parts.append(0)
+    v_tuple = tuple(parts[:4])
+
+    content = f"""# UTF-8
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers={v_tuple},
+    prodvers={v_tuple},
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+  ),
+  kids=[
+    StringFileInfo(
+      [
+        StringTable(
+          '040904B0',
+          [
+            StringStruct('CompanyName', 'StreamGremlin'),
+            StringStruct('FileDescription', 'StreamGremlin Windows Companion Agent'),
+            StringStruct('FileVersion', '{version_str}'),
+            StringStruct('InternalName', 'StreamGremlin'),
+            StringStruct('LegalCopyright', 'CC0-1.0'),
+            StringStruct('OriginalFilename', 'StreamGremlin.exe'),
+            StringStruct('ProductName', 'StreamGremlin'),
+            StringStruct('ProductVersion', '{version_str}')
+          ]
+        )
+      ]
+    ),
+    VarFileInfo([VarStruct('Translation', [1033, 1200])])
+  ]
+)
+"""
+    ver_file = ROOT_DIR / "src" / "agent" / "file_version_info.txt"
+    ver_file.write_text(content, encoding="utf-8")
+    return ver_file
 
 
 def ensure_ico() -> Path | None:
@@ -54,6 +109,10 @@ def build() -> None:
         cmd.extend(["--add-data", f"{ICON_PNG}{sep}."])
     if ico_path and ico_path.exists():
         cmd.extend(["--icon", str(ico_path)])
+
+    ver_file = generate_version_file(AGENT_VERSION)
+    if ver_file.exists():
+        cmd.extend(["--version-file", str(ver_file)])
 
     cmd.append(str(AGENT_SCRIPT))
     print("Running PyInstaller:", " ".join(cmd))

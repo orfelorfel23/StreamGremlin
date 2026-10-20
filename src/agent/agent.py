@@ -133,7 +133,7 @@ def open_log_file() -> None:
             except Exception as e:
                 logger.error("Could not open log file %s: %s", p, e)
 
-AGENT_VERSION = "1.1.1"
+AGENT_VERSION = "23.01.01"
 
 
 def is_newer_version(remote: str, current: str) -> bool:
@@ -1004,7 +1004,10 @@ del "%~f0"
             self.chaos.stop()
             icon.stop()
 
-        items = []
+        items = [
+            pystray.MenuItem(f"StreamGremlin v{AGENT_VERSION}", None, enabled=False),
+            pystray.Menu.SEPARATOR,
+        ]
         if self.update_available:
             def on_update_click(icon, item):
                 threading.Thread(target=self.perform_self_update, daemon=True).start()
@@ -1185,7 +1188,7 @@ del "%~f0"
         try:
             self.tray_icon.icon = self._create_status_image(self.connected)
             status_text = "Verbunden" if self.connected else "Getrennt"
-            self.tray_icon.title = f"StreamGremlin ({status_text})"
+            self.tray_icon.title = f"StreamGremlin v{AGENT_VERSION} ({status_text})"
             self.tray_icon.menu = self._build_tray_menu()
         except Exception:
             pass
@@ -1199,7 +1202,7 @@ del "%~f0"
         self.tray_icon = pystray.Icon(
             "StreamGremlin",
             self._create_status_image(False),
-            "StreamGremlin Companion Agent",
+            f"StreamGremlin Companion Agent v{AGENT_VERSION}",
             self._build_tray_menu(),
         )
         self.tray_icon.run()
@@ -1240,7 +1243,8 @@ def load_agent_config() -> Tuple[str, str, bool]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="StreamGremlin Windows Companion Agent")
+    parser = argparse.ArgumentParser(description=f"StreamGremlin Windows Companion Agent v{AGENT_VERSION}")
+    parser.add_argument("-v", "--version", action="version", version=f"StreamGremlin v{AGENT_VERSION}")
     parser.add_argument("--url", default="", help="StreamGremlin Hub Base URL")
     parser.add_argument("--token", default="", help="Agent Auth Token")
     parser.add_argument("--auto-update", dest="auto_update", action="store_true", default=None, help="Automatisches Update aktivieren")

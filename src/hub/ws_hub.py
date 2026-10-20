@@ -23,7 +23,7 @@ from src.hub.automation import AutomationService
 
 logger = logging.getLogger("streamgremlin.ws_hub")
 
-AGENT_VERSION = "1.1.1"
+AGENT_VERSION = "23.01.01"
 
 
 def is_newer_version(latest: str, current: str) -> bool:
@@ -106,7 +106,7 @@ class WebSocketHub:
             event_type="system",
             title="Gaming-PC Agent verbunden",
             user=info.get("hostname", "Windows-PC"),
-            details=f"Version {info.get('version', '1.0.0')}",
+            details=f"Version {info.get('version', AGENT_VERSION)}",
         )
 
     def disconnect_agent(self, ws: WebSocket) -> None:
@@ -119,7 +119,7 @@ class WebSocketHub:
             "overlay_count": len(self.overlay_clients),
             "agent_count": len(self.agent_clients),
             "agents": [
-                {"hostname": v.get("hostname", "PC"), "version": v.get("version", "1.0.0")}
+                {"hostname": v.get("hostname", "PC"), "version": v.get("version", AGENT_VERSION)}
                 for v in self.agent_clients.values()
             ],
             "master_muted": self.master_muted,

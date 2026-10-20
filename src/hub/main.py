@@ -55,7 +55,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="StreamGremlin Hub",
     description="Interactive Twitch Chat, Overlay & Input Chaos Engine",
-    version="1.1.1",
+    version="23.01.01",
     lifespan=lifespan,
 )
 
@@ -73,7 +73,7 @@ async def health_check() -> dict[str, Any]:
     return {
         "status": "ok",
         "service": "StreamGremlin",
-        "version": "1.1.1",
+        "version": "23.01.01",
         "port": 4736,
     }
 
@@ -574,7 +574,7 @@ pause
 """
 
     liesmich_txt = f"""===================================================================
- STREAMGREMLIN - GAMING-PC COMPANION AGENT
+ STREAMGREMLIN - GAMING-PC COMPANION AGENT v{AGENT_VERSION}
 ===================================================================
 
 Schritt 1:
@@ -646,7 +646,7 @@ $ErrorActionPreference = "Stop"
 $dest = "$env:LOCALAPPDATA\\StreamGremlin"
 if (!(Test-Path $dest)) {{ New-Item -ItemType Directory -Path $dest -Force | Out-Null }}
 
-Write-Host "Lade StreamGremlin Companion Agent herunter..." -ForegroundColor Green
+Write-Host "Lade StreamGremlin Companion Agent v{AGENT_VERSION} herunter..." -ForegroundColor Green
 Invoke-WebRequest -Uri "{base_http}/api/agent/download" -OutFile "$dest\\StreamGremlin.exe"
 
 $config = @{{
@@ -662,9 +662,9 @@ $sc.TargetPath = "$dest\\StreamGremlin.exe"
 $sc.WorkingDirectory = $dest
 $sc.Save()
 
-Write-Host "Starte StreamGremlin..." -ForegroundColor Green
+Write-Host "Starte StreamGremlin v{AGENT_VERSION}..." -ForegroundColor Green
 Start-Process "$dest\\StreamGremlin.exe" -WorkingDirectory $dest
-Write-Host "Fertig! StreamGremlin laeuft im System Tray und startet ab jetzt automatisch." -ForegroundColor Green
+Write-Host "Fertig! StreamGremlin v{AGENT_VERSION} laeuft im System Tray und startet ab jetzt automatisch." -ForegroundColor Green
 """
     return Response(
         content=ps_script,
@@ -720,7 +720,7 @@ async def ws_agent_endpoint(ws: WebSocket) -> None:
             return
 
         authenticated = True
-        client_ver = handshake.get("version", "1.0.0")
+        client_ver = handshake.get("version", AGENT_VERSION)
         has_update = is_newer_version(AGENT_VERSION, client_ver)
         await ws.send_json({
             "status": "authenticated",

@@ -511,7 +511,7 @@
     <div class="brand">
       <img src="/assets/icon.png" alt="Logo" />
       <span class="brand-title">StreamGremlin</span>
-      <span class="brand-version">v1.0.0</span>
+      <span class="brand-version" id="brand-version">v23.01.01</span>
     </div>
 
     <div class="status-group">
@@ -960,7 +960,7 @@
               <div class="panel-body">
                 <div style="background: rgba(145, 70, 255, 0.1); border: 1px solid var(--accent-purple); border-radius: 4px; padding: 12px 14px; margin-bottom: 14px;">
                   <div style="font-weight: 600; font-size: 13px; color: #e9d5ff; margin-bottom: 6px;">
-                    Komplettpaket für Windows
+                    Komplettpaket für Windows (v23.01.01)
                   </div>
                   <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.5;">
                     Enthält <code>StreamGremlin.exe</code>, die fertige <code>agent_config.json</code>, Autostart-Datei und Kurzanleitung.
@@ -1244,6 +1244,13 @@
     // Auth & Init
     // =========================================================================
     async function checkAuth() {
+      fetch('/api/health').then(r => r.json()).then(d => {
+        if (d && d.version) {
+          const vEl = document.getElementById('brand-version');
+          if (vEl) vEl.textContent = 'v' + d.version;
+        }
+      }).catch(() => {});
+
       document.getElementById('obs-url-box').value = `${location.origin}/overlay`;
       document.getElementById('wizard-redirect-uri').value = `${location.origin}/api/twitch/callback`;
 
@@ -1328,6 +1335,10 @@
     }
 
     function updateStatusHeader(st) {
+      if (st.agent_version) {
+        const vEl = document.getElementById('brand-version');
+        if (vEl) vEl.textContent = 'v' + st.agent_version;
+      }
       const ledTw = document.getElementById('led-twitch');
       const txtTw = document.getElementById('txt-twitch');
       if (st.twitch_connected) {
