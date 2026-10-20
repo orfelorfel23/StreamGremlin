@@ -102,10 +102,16 @@ if APPDATA_LOG_FILE and APPDATA_LOG_FILE != PRIMARY_LOG_FILE:
         pass
 
 # Add console handler
-console_handler = logging.StreamHandler(sys.stdout)
-console_handler.setLevel(logging.INFO)
-console_handler.setFormatter(log_formatter)
-root_logger.addHandler(console_handler)
+if sys.stdout is not None:
+    try:
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setLevel(logging.INFO)
+        console_handler.setFormatter(log_formatter)
+        root_logger.addHandler(console_handler)
+    except Exception:
+        pass
 
 logger = logging.getLogger("streamgremlin.agent")
 
@@ -282,7 +288,11 @@ def send_hardware_scancode(key_target: Any, is_press: bool) -> None:
             elif ch == "esc":
                 vk, scan = 0x1B, 0x01
             elif len(ch) == 1:
-                vk = user32.VkKeyScanW(ord(ch)) & 0xFF
+                try:
+                    res_vk = user32.VkKeyScanW(wintypes.WCHAR(ch))
+                except Exception:
+                    res_vk = user32.VkKeyScanW(ord(ch))
+                vk = res_vk & 0xFF if res_vk != -1 else 0
                 scan = user32.MapVirtualKeyW(vk, 0)
         elif HAS_PYNPUT and key_target == keyboard.Key.space:
             vk, scan = 0x20, 0x39
@@ -292,7 +302,11 @@ def send_hardware_scancode(key_target: Any, is_press: bool) -> None:
             vk, scan = 0x1B, 0x01
         elif HAS_PYNPUT and hasattr(key_target, "char") and key_target.char:
             ch = key_target.char.lower()
-            vk = user32.VkKeyScanW(ord(ch)) & 0xFF
+            try:
+                res_vk = user32.VkKeyScanW(wintypes.WCHAR(ch))
+            except Exception:
+                res_vk = user32.VkKeyScanW(ord(ch))
+            vk = res_vk & 0xFF if res_vk != -1 else 0
             scan = user32.MapVirtualKeyW(vk, 0)
 
         if not scan:
@@ -864,7 +878,7 @@ class StreamGremlinAgent:
 
     def play_local_sound(self, filename: str, sound_url: str) -> None:
         """Download sound from Hub if missing and play asynchronously through streamer's headset."""
-        if not HAS_WINSOUND or sys.platform != "win32":
+        if sys.platform != "win32":
             return
         local_path = self.sound_cache_dir / Path(filename).name
 
@@ -873,7 +887,15 @@ class StreamGremlinAgent:
                 if not local_path.exists():
                     full_url = f"{self.hub_url}{sound_url}" if sound_url.startswith("/") else sound_url
                     urllib.request.urlretrieve(full_url, str(local_path))
-                winsound.PlaySound(str(local_path), winsound.SND_FILENAME | winsound.SND_ASYNC)
+
+                ext = local_path.suffix.lower()
+                if ext == ".wav" and HAS_WINSOUND:
+                    winsound.PlaySound(str(local_path), winsound.SND_FILENAME | winsound.SND_ASYNC)
+                else:
+                    alias = f"sg_snd_{int(time.time() * 1000) % 100000}"
+                    ctypes.windll.winmm.mciSendStringW(f'open "{local_path}" type mpegvideo alias {alias}', None, 0, None)
+                    ctypes.windll.winmm.mciSendStringW(f'play {alias} wait', None, 0, None)
+                    ctypes.windll.winmm.mciSendStringW(f'close {alias}', None, 0, None)
             except Exception as exc:
                 logger.debug("Local sound play error: %s", exc)
 
