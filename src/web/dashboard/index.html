@@ -887,7 +887,7 @@
         <span class="status-dot" id="led-overlay"></span>
         <span>OBS: <strong id="txt-overlay">0</strong></span>
       </div>
-      <span class="role-badge" id="hdr-role-badge">ADMIN</span>
+      <span class="role-badge" id="hdr-role-badge" style="display:none;">ADMIN</span>
       <button class="btn btn-mute-active" id="btn-mute" onclick="toggleMute()">🔊 Audio: An</button>
       <button class="btn-panic" onclick="triggerPanic()">⚡ NOT-AUS (PANIK)</button>
       <button class="btn" onclick="logout()" title="Sperren">🔒 Sperren</button>
@@ -1934,53 +1934,6 @@
             <td>
               <button class="btn btn-sm" style="margin-right:4px;" onclick="editTrigger(${idx})">${currentRole === 'admin' ? 'Edit' : 'Anpassen'}</button>
               ${currentRole === 'admin' ? `<button class="btn btn-sm btn-danger" onclick="deleteTrigger(${idx})">Del</button>` : ''}
-            </td>
-          </tr>
-        `;
-      }).join('');
-    }
-      const triggers = appConfig.triggers || [];
-      if (!triggers.length) {
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">Keine Trigger vorhanden.</td></tr>';
-        return;
-      }
-      const prefix = (appConfig.general && appConfig.general.prefix) || '!';
-      tbody.innerHTML = triggers.map((t, idx) => {
-        let patternCostStr = '-';
-        if (t.type === 'channel_point') {
-          patternCostStr = `${t.title || t.pattern || 'Kanalpunkte'} (${t.cost ? t.cost + ' Pkt.' : '0 Pkt.'})`;
-        } else if (t.type === 'bits') {
-          patternCostStr = `${t.pattern ? t.pattern + ' · ' : ''}${t.cost || 0} Bits`;
-        } else if (t.type === 'command') {
-          patternCostStr = `${prefix}${t.pattern || '-'}`;
-        } else {
-          patternCostStr = t.pattern || (t.cost ? t.cost + ' Pkt.' : '-');
-        }
-
-        const customBadge = (t.is_custom || t.is_custom_cooldown)
-          ? `<span class="badge" style="background:var(--accent-purple); color:#fff; font-size:10px; margin-left:5px;" title="Individuell für diese Instanz angepasst">eigen</span>`
-          : '';
-
-        return `
-          <tr>
-            <td>
-              <input type="checkbox" ${t.enabled !== false ? 'checked' : ''} onchange="toggleTriggerEnabled(${idx}, this.checked)" />
-            </td>
-            <td><strong>${t.name || t.title || t.id}</strong>${customBadge}</td>
-            <td><span class="mono">${t.type}</span></td>
-            <td><span class="mono">${patternCostStr}</span></td>
-            <td>
-              ${t.is_custom_cooldown
-                ? `<span class="badge" style="background:var(--accent-purple); color:#fff; font-size:11px;" title="Individueller Cooldown">${t.cooldown_sec}s</span>`
-                : `<span class="mono">${t.cooldown_sec || 5}s</span>`
-              }
-            </td>
-            <td><span class="mono">${t.match_mode || 'word'}</span></td>
-            <td><span class="mono">${(t.allowed_roles || ['everyone']).join(', ')}</span></td>
-            <td><span class="mono">${(t.actions || []).map(a => a.type).join(', ')}</span></td>
-            <td>
-              <button class="btn" style="padding:3px 7px; margin-right:4px;" onclick="editTrigger(${idx})">${currentRole === 'admin' ? 'Edit' : 'Anpassen'}</button>
-              ${currentRole === 'admin' ? `<button class="btn btn-danger" style="padding:3px 7px;" onclick="deleteTrigger(${idx})">Del</button>` : ''}
             </td>
           </tr>
         `;
