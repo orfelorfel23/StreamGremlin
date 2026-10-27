@@ -444,13 +444,19 @@
 
     .grid-2 {
       display: grid;
-      grid-template-columns: 1.15fr 0.85fr;
+      grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
       gap: 18px;
+    }
+    .grid-2 > * {
+      min-width: 0;
     }
     .grid-equal {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       gap: 18px;
+    }
+    .grid-equal > * {
+      min-width: 0;
     }
 
     /* Buttons */
@@ -1168,10 +1174,10 @@
             <div class="panel">
               <div class="panel-head">
                 <span>Overlay-Vorschau</span>
-                <button class="btn" onclick="togglePreviewIframe()">Ein/Aus</button>
+                <button class="btn" id="btn-toggle-preview" onclick="togglePreviewIframe()">Ein/Aus</button>
               </div>
-              <div class="panel-body" id="preview-Wrap" style="display:none; background:#000; padding:0; overflow:hidden; height:240px; position:relative;">
-                <iframe id="overlay-preview-frame" src="" style="width:1920px; height:1080px; border:0; transform:scale(0.22); transform-origin:top left; pointer-events:none;"></iframe>
+              <div class="panel-body" id="preview-Wrap" style="display:none; background:#000; padding:0; overflow:hidden; width:100%; max-width:100%; aspect-ratio:16/9; position:relative;">
+                <iframe id="overlay-preview-frame" src="" style="position:absolute; top:0; left:0; width:1920px; height:1080px; border:0; transform-origin:top left; pointer-events:none;"></iframe>
               </div>
             </div>
           </div>
@@ -2440,17 +2446,44 @@
       }
     }
 
+    let previewResizeObserver = null;
+
+    function updatePreviewScale() {
+      const wrap = document.getElementById('preview-Wrap');
+      const iframe = document.getElementById('overlay-preview-frame');
+      if (!wrap || !iframe || wrap.style.display === 'none') return;
+      const width = wrap.clientWidth;
+      if (width > 0) {
+        const scale = width / 1920;
+        iframe.style.transform = `scale(${scale})`;
+      }
+    }
+
     function togglePreviewIframe() {
       const wrap = document.getElementById('preview-Wrap');
       const iframe = document.getElementById('overlay-preview-frame');
-      if (wrap.style.display === 'none') {
+      const btn = document.getElementById('btn-toggle-preview');
+      if (!wrap || !iframe) return;
+      const isHidden = wrap.style.display === 'none' || getComputedStyle(wrap).display === 'none';
+      if (isHidden) {
         iframe.src = '/overlay';
         wrap.style.display = 'block';
+        if (btn) btn.classList.add('btn-primary');
+        updatePreviewScale();
+        if (!previewResizeObserver && window.ResizeObserver) {
+          previewResizeObserver = new ResizeObserver(() => {
+            updatePreviewScale();
+          });
+          previewResizeObserver.observe(wrap);
+        }
       } else {
         iframe.src = '';
         wrap.style.display = 'none';
+        if (btn) btn.classList.remove('btn-primary');
       }
     }
+
+    window.addEventListener('resize', updatePreviewScale);
 
     async function startTwitchOAuth() {
       const res = await fetch('/api/twitch/auth-url');
